@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energie Monitor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sun: #f5a623; --sun-light: #fde68a;
+    --net: #3b82f6; --green: #22c55e; --green-light: #bbf7d0;
+    --red: #ef4444; --bg: #0d1117; --surface: #161b22;
+    --surface2: #21262d; --border: #30363d;
+    --text: #e6edf3; --muted: #7d8590; --orange: #fb923c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; }
+
+  /* AUTH SCREEN */
+  #authScreen {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; flex-direction: column; gap: 24px; padding: 20px;
+  }
+  .auth-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 48px; text-align: center; max-width: 420px; width: 100%;
+  }
+  .auth-logo { font-size: 48px; margin-bottom: 16px; }
+  .auth-title { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
+  .auth-sub { font-size: 13px; color: var(--muted); margin-bottom: 32px; line-height: 1.6; }
+  .auth-btn {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    background: white; color: #1a1a1a; border: none; border-radius: 10px;
+    padding: 14px 28px; font-family: 'Syne', sans-serif; font-size: 15px;
+    font-weight: 700; cursor: pointer; width: 100%; transition: all 0.2s;
+  }
+  .auth-btn:hover { background: #f0f0f0; transform: translateY(-1px); }
+  .auth-btn svg { width: 20px; height: 20px; }
+  .auth-note { font-size: 11px; color: var(--muted); margin-top: 16px; }
+
+  /* STATUS BAR */
+  #statusBar {
+    display: none; background: var(--surface2); border-bottom: 1px solid var(--border);
+    padding: 8px 32px; font-size: 11px; color: var(--muted);
+    font-family: 'DM Mono', monospace; align-items: center; gap: 12px;
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+  .status-dot.syncing { background: var(--sun); animation: pulse 1s infinite; }
+  .status-dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+  #signOutBtn {
+    margin-left: auto; background: transparent; border: 1px solid var(--border);
+    color: var(--muted); padding: 4px 10px; border-radius: 5px; cursor: pointer;
+    font-family: 'DM Mono', monospace; font-size: 10px;
+  }
+  #signOutBtn:hover { color: var(--red); border-color: var(--red); }
+
+  /* HEADER */
+  header {
+    background: linear-gradient(135deg, #0d1117 0%, #1a1f2e 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px; display: flex; align-items: center;
+    justify-content: space-between; flex-wrap: wrap; gap: 16px;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 40px; height: 40px; background: var(--sun); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+  }
+  .logo-text { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-sub { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 1px; }
+  .header-stats { display: flex; gap: 24px; flex-wrap: wrap; }
+  .hstat { text-align: right; }
+  .hstat-val { font-size: 22px; font-weight: 700; color: var(--sun); font-family: 'DM Mono', monospace; }
+  .hstat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* APP */
+  #app { display: none; }
+
+  main { padding: 28px 32px; max-width: 1400px; margin: 0 auto; }
+
+  .tabs {
+    display: flex; gap: 4px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 4px; width: fit-content; margin-bottom: 28px;
+  }
+  .tab {
+    padding: 8px 18px; border-radius: 7px; border: none;
+    background: transparent; color: var(--muted); cursor: pointer;
+    font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600; transition: all 0.2s;
+  }
+  .tab.active { background: var(--surface2); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .form-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px; margin-bottom: 24px;
+  }
+  .form-title {
+    font-size: 14px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--sun); margin-bottom: 20px;
+  }
+  .form-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;
+  }
+  .field label {
+    display: block; font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.8px; margin-bottom: 6px; font-family: 'DM Mono', monospace;
+  }
+  .field input {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; color: var(--text);
+    font-family: 'DM Mono', monospace; font-size: 14px; transition: border-color 0.2s; outline: none;
+  }
+  .field input:focus { border-color: var(--sun); box-shadow: 0 0 0 3px rgba(245,166,35,0.1); }
+
+  .btn {
+    padding: 12px 28px; border-radius: 8px; border: none; cursor: pointer;
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px;
+    transition: all 0.2s; letter-spacing: 0.5px;
+  }
+  .btn-primary { background: var(--sun); color: #0d1117; }
+  .btn-primary:hover { background: #e09010; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .form-actions { margin-top: 20px; display: flex; gap: 12px; align-items: center; }
+  #formMsg { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 14px; margin-bottom: 24px;
+  }
+  .kpi {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px; position: relative; overflow: hidden;
+  }
+  .kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .kpi.sun::before { background: var(--sun); }
+  .kpi.blue::before { background: var(--net); }
+  .kpi.green::before { background: var(--green); }
+  .kpi.purple::before { background: #a78bfa; }
+  .kpi.orange::before { background: var(--orange); }
+  .kpi-icon { font-size: 20px; margin-bottom: 10px; }
+  .kpi-val { font-size: 26px; font-weight: 800; font-family: 'DM Mono', monospace; line-height: 1; }
+  .kpi.sun .kpi-val { color: var(--sun); }
+  .kpi.blue .kpi-val { color: var(--net); }
+  .kpi.green .kpi-val { color: var(--green); }
+  .kpi.purple .kpi-val { color: #a78bfa; }
+  .kpi.orange .kpi-val { color: var(--orange); }
+  .kpi-unit { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .kpi-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 8px; font-family: 'DM Mono', monospace; }
+
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  @media (max-width: 900px) {
+    .chart-grid { grid-template-columns: 1fr; }
+    header, main { padding-left: 20px; padding-right: 20px; }
+  }
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px;
+  }
+  .chart-card.wide { grid-column: 1 / -1; }
+  .chart-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+  .chart-title { font-size: 13px; font-weight: 700; color: var(--text); }
+  .chart-sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: 'DM Mono', monospace; }
+
+  .battery-advice {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 24px; margin-bottom: 20px;
+  }
+  .advice-title {
+    font-size: 14px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--sun); margin-bottom: 18px;
+  }
+  .advice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 700px) { .advice-grid { grid-template-columns: 1fr; } }
+  .advice-card {
+    border-radius: 10px; padding: 18px; border: 1px solid; transition: transform 0.2s;
+  }
+  .advice-card:hover { transform: translateY(-2px); }
+  .advice-card.ok { background: rgba(34,197,94,0.07); border-color: rgba(34,197,94,0.3); }
+  .advice-card.optimal { background: rgba(245,166,35,0.1); border-color: rgba(245,166,35,0.4); }
+  .advice-card.max { background: rgba(59,130,246,0.07); border-color: rgba(59,130,246,0.3); }
+  .advice-tag { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 10px; font-family: 'DM Mono', monospace; }
+  .advice-card.ok .advice-tag { color: var(--green); }
+  .advice-card.optimal .advice-tag { color: var(--sun); }
+  .advice-card.max .advice-tag { color: var(--net); }
+  .advice-size { font-size: 36px; font-weight: 800; font-family: 'DM Mono', monospace; }
+  .advice-card.ok .advice-size { color: var(--green); }
+  .advice-card.optimal .advice-size { color: var(--sun); }
+  .advice-card.max .advice-size { color: var(--net); }
+  .advice-kwh { font-size: 13px; color: var(--muted); }
+  .advice-desc { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+  .advice-saving { margin-top: 10px; font-size: 13px; font-weight: 700; }
+  .advice-card.ok .advice-saving { color: var(--green); }
+  .advice-card.optimal .advice-saving { color: var(--sun); }
+  .advice-card.max .advice-saving { color: var(--net); }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-family: 'DM Mono', monospace; font-size: 12px; }
+  th { padding: 10px 14px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 10px 14px; border-bottom: 1px solid rgba(48,54,61,0.5); white-space: nowrap; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .td-del { cursor: pointer; color: var(--muted); font-size: 14px; text-align: center; }
+  .td-del:hover { color: var(--red); }
+
+  .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+  .empty-text { font-size: 14px; }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; background: var(--green);
+    color: #0d1117; padding: 12px 20px; border-radius: 8px; font-weight: 700;
+    font-size: 13px; transform: translateY(80px); opacity: 0; transition: all 0.3s; z-index: 999;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.error-toast { background: var(--red); color: white; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .setup-banner {
+    background: rgba(245,166,35,0.1); border: 1px solid rgba(245,166,35,0.3);
+    border-radius: 10px; padding: 14px 18px; margin-bottom: 20px;
+    font-size: 12px; color: var(--sun); font-family: 'DM Mono', monospace; line-height: 1.6;
+  }
+  .setup-banner strong { font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-logo">☀️</div>
+    <div class="auth-title">Energie Monitor</div>
+    <div class="auth-sub">
+      Log in met Google om je energiedata op te slaan in Google Sheets.<br>
+      Daarna is je data beschikbaar op elk apparaat.
+    </div>
+    <button class="auth-btn" id="signInBtn" onclick="signIn()" disabled style="opacity:0.5;cursor:not-allowed;">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Inloggen met Google
+    </button>
+    <div class="auth-note">Je data gaat naar je eigen Google Drive → map "Thuisbatterij"</div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div id="statusBar">
+  <div class="status-dot" id="statusDot"></div>
+  <span id="statusText">Verbonden met Google Sheets</span>
+  <button id="signOutBtn" onclick="signOut()">Uitloggen</button>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">☀️</div>
+      <div>
+        <div class="logo-text">Energie Monitor</div>
+        <div class="logo-sub">Thuisbatterij Analyse</div>
+      </div>
+    </div>
+    <div class="header-stats">
+      <div class="hstat">
+        <div class="hstat-val" id="hTotaalOpwek">—</div>
+        <div class="hstat-label">Totaal opwek</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-val" id="hTotaalTerug">—</div>
+        <div class="hstat-label">Teruggeleverd</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-val" id="hDagen">—</div>
+        <div class="hstat-label">Meetdagen</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('invoer')">📥 Invoer</button>
+      <button class="tab" onclick="switchTab('dashboard')">📊 Dashboard</button>
+      <button class="tab" onclick="switchTab('batterij')">🔋 Batterijadvies</button>
+      <button class="tab" onclick="switchTab('data')">📋 Data</button>
+    </div>
+
+    <!-- INVOER -->
+    <div class="panel active" id="panel-invoer">
+      <div class="setup-banner" id="setupBanner" style="display:none;">
+        <strong>⚙️ Eerste keer instellen:</strong> Open je <a href="https://docs.google.com/spreadsheets/d/1rio7mKOB_zaqqAg7vJAlGkDnZsukb0b8GEHirFnvLz0/edit" target="_blank" style="color:var(--sun)">Google Sheet</a> en voeg op rij 1 deze headers toe: datum | opwek | teruggeleverd | uit_net | zelf | totaal | auto_groen | auto_net — daarna werkt alles automatisch.
+      </div>
+      <div class="form-card">
+        <div class="form-title">🌤 Dagelijkse meting invoeren</div>
+        <div class="form-grid">
+          <div class="field"><label>Datum</label><input type="date" id="f-datum"></div>
+          <div class="field"><label>Opgewekte energie (kWh)</label><input type="number" id="f-opwek" step="0.01" placeholder="bv. 45.50"></div>
+          <div class="field"><label>Zelf verbruikt (kWh)</label><input type="number" id="f-zelf" step="0.01" placeholder="bv. 30.00"></div>
+          <div class="field"><label>Teruggeleverd aan net (kWh)</label><input type="number" id="f-terug" step="0.01" placeholder="bv. 15.00"></div>
+          <div class="field"><label>Stroom uit net gehaald (kWh)</label><input type="number" id="f-uitnet" step="0.01" placeholder="bv. 20.00"></div>
+          <div class="field"><label>Auto geladen groen (kWh)</label><input type="number" id="f-autogroen" step="0.01" placeholder="bv. 10.00"></div>
+          <div class="field"><label>Auto geladen uit net (kWh)</label><input type="number" id="f-autonet" step="0.01" placeholder="bv. 0.50"></div>
+          <div class="field"><label>Totaal verbruik (kWh)</label><input type="number" id="f-totaal" step="0.01" placeholder="bv. 50.00"></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="saveBtn" onclick="addEntry()">+ Dag opslaan in Google Sheets</button>
+          <span id="formMsg"></span>
+        </div>
+      </div>
+
+      <div class="kpi-grid" id="todayKpis" style="display:none;">
+        <div class="kpi sun"><div class="kpi-icon">☀️</div><div class="kpi-val" id="kLatestOpwek">—</div><div class="kpi-unit">kWh</div><div class="kpi-label">Opwek</div></div>
+        <div class="kpi blue"><div class="kpi-icon">🔌</div><div class="kpi-val" id="kLatestUitnet">—</div><div class="kpi-unit">kWh</div><div class="kpi-label">Uit net</div></div>
+        <div class="kpi orange"><div class="kpi-icon">↩️</div><div class="kpi-val" id="kLatestTerug">—</div><div class="kpi-unit">kWh</div><div class="kpi-label">Teruggeleverd</div></div>
+        <div class="kpi green"><div class="kpi-icon">⚡</div><div class="kpi-val" id="kLatestZelf">—</div><div class="kpi-unit">%</div><div class="kpi-label">Zelfverbruik</div></div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="panel" id="panel-dashboard">
+      <div class="kpi-grid">
+        <div class="kpi sun"><div class="kpi-icon">☀️</div><div class="kpi-val" id="kGemOpwek">—</div><div class="kpi-unit">kWh/dag gemiddeld</div><div class="kpi-label">Opwek</div></div>
+        <div class="kpi orange"><div class="kpi-icon">↩️</div><div class="kpi-val" id="kGemTerug">—</div><div class="kpi-unit">kWh/dag gemiddeld</div><div class="kpi-label">Teruggeleverd</div></div>
+        <div class="kpi blue"><div class="kpi-icon">🔌</div><div class="kpi-val" id="kGemUitnet">—</div><div class="kpi-unit">kWh/dag gemiddeld</div><div class="kpi-label">Uit net</div></div>
+        <div class="kpi green"><div class="kpi-icon">⚡</div><div class="kpi-val" id="kZelfPct">—</div><div class="kpi-unit">% gemiddeld</div><div class="kpi-label">Zelfverbruik</div></div>
+        <div class="kpi purple"><div class="kpi-icon">🏆</div><div class="kpi-val" id="kMaxOpwek">—</div><div class="kpi-unit">kWh record dag</div><div class="kpi-label">Piek opwek</div></div>
+        <div class="kpi sun"><div class="kpi-icon">📅</div><div class="kpi-val" id="kDagen">—</div><div class="kpi-unit">dagen gemeten</div><div class="kpi-label">Dataset</div></div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card wide">
+          <div class="chart-header"><div><div class="chart-title">Opwek vs. Teruglevering vs. Netafname</div><div class="chart-sub">alle meetdagen</div></div></div>
+          <canvas id="chartMain" height="80"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header"><div><div class="chart-title">Zelfverbruik per dag</div><div class="chart-sub">% van opwek direct gebruikt</div></div></div>
+          <canvas id="chartZelf" height="140"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header"><div><div class="chart-title">Auto laden: groen vs. net</div><div class="chart-sub">kWh per dag</div></div></div>
+          <canvas id="chartAuto" height="140"></canvas>
+        </div>
+        <div class="chart-card wide">
+          <div class="chart-header"><div><div class="chart-title">Energie balans per dag</div><div class="chart-sub">groen = overschot, rood = tekort</div></div></div>
+          <canvas id="chartBalans" height="70"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- BATTERIJ -->
+    <div class="panel" id="panel-batterij">
+      <div class="battery-advice">
+        <div class="advice-title">🔋 Batterijadvies op basis van jouw data</div>
+        <div class="advice-grid">
+          <div class="advice-card ok">
+            <div class="advice-tag">✅ Instapmodel</div>
+            <div class="advice-size">10</div><div class="advice-kwh">kWh</div>
+            <div class="advice-desc" id="adv10">—</div>
+            <div class="advice-saving" id="sav10">—</div>
+          </div>
+          <div class="advice-card optimal">
+            <div class="advice-tag">⭐ Optimaal</div>
+            <div class="advice-size">15</div><div class="advice-kwh">kWh</div>
+            <div class="advice-desc" id="adv15">—</div>
+            <div class="advice-saving" id="sav15">—</div>
+          </div>
+          <div class="advice-card max">
+            <div class="advice-tag">🚀 Maximaal</div>
+            <div class="advice-size">20</div><div class="advice-kwh">kWh</div>
+            <div class="advice-desc" id="adv20">—</div>
+            <div class="advice-saving" id="sav20">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-header"><div><div class="chart-title">Teruglevering distributie</div><div class="chart-sub">kWh per dag</div></div></div>
+          <canvas id="chartTerug" height="150"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header"><div><div class="chart-title">Batterijbenutting simulatie</div><div class="chart-sub">% teruglevering gedekt per capaciteit</div></div></div>
+          <canvas id="chartBatterij" height="150"></canvas>
+        </div>
+        <div class="chart-card wide">
+          <div class="chart-header"><div><div class="chart-title">Dagelijks batterijpotentieel</div><div class="chart-sub">teruglevering per dag = max. laadruimte</div></div></div>
+          <canvas id="chartPotentieel" height="70"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- DATA -->
+    <div class="panel" id="panel-data">
+      <div class="form-card">
+        <div class="form-title">📋 Alle meetdata <span style="font-weight:400;color:var(--muted);font-size:11px;">(opgeslagen in Google Sheets)</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Datum</th><th>Opwek</th><th>Zelf verbruikt</th>
+                <th>Teruggeleverd</th><th>Uit net</th><th>Auto groen</th>
+                <th>Auto net</th><th>Totaal</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="dataTable">
+              <tr><td colspan="9"><div class="empty"><div class="empty-icon">📂</div><div class="empty-text">Data laden...</div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast">✓ Opgeslagen!</div>
+
+<!-- GOOGLE API -->
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────
+// STAP 1: Ga naar https://console.cloud.google.com
+// STAP 2: Maak een project, activeer Google Sheets API + Google Drive API
+// STAP 3: Maak OAuth 2.0 credentials (Web application), voeg je domein toe
+// STAP 4: Plak je Client ID hieronder
+const CLIENT_ID = '729078019772-rqio116p7tfgot33t0duk2vq17r7fmdj.apps.googleusercontent.com';
+const SHEET_ID  = '1rio7mKOB_zaqqAg7vJAlGkDnZsukb0b8GEHirFnvLz0';
+const SHEET_NAME = 'Blad1';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+const WINST_PER_KWH = 0.12682;
+
+let tokenClient, gapiLoaded = false, gisLoaded = false;
+let data = [];
+let charts = {};
+
+// ─── GOOGLE AUTH ──────────────────────────────────────────────
+function gapiInit() {
+  gapi.load('client', async () => {
+    await gapi.client.init({
+      discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
+    });
+    gapiLoaded = true;
+    maybeEnable();
+  });
+}
+
+function gisInit() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: async (resp) => {
+      if (resp.error) { showToast('Login mislukt', true); return; }
+      showApp();
+      await loadData();
+    },
+  });
+  gisLoaded = true;
+  maybeEnable();
+}
+
+function maybeEnable() {
+  if (gapiLoaded && gisLoaded) {
+    const btn = document.getElementById('signInBtn');
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
+    const token = sessionStorage.getItem('gToken');
+    if (token) {
+      gapi.client.setToken({ access_token: token });
+      showApp();
+      loadData();
+    }
+  }
+}
+
+function signIn() {
+  if (!gapiLoaded || !gisLoaded) {
+    showToast('Google API nog aan het laden, probeer opnieuw...', true);
+    return;
+  }
+  if (CLIENT_ID === 'JOUW_CLIENT_ID_HIER.apps.googleusercontent.com') {
+    // Demo mode without real auth
+    showApp();
+    loadDemoData();
+    return;
+  }
+  tokenClient.requestAccessToken({ prompt: 'consent' });
+}
+
+function signOut() {
+  const token = gapi.client.getToken();
+  if (token) google.accounts.oauth2.revoke(token.access_token);
+  gapi.client.setToken('');
+  sessionStorage.removeItem('gToken');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('statusBar').style.display = 'none';
+  document.getElementById('authScreen').style.display = 'flex';
+}
+
+function showApp() {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('statusBar').style.display = 'flex';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('f-datum').value = new Date().toISOString().split('T')[0];
+}
+
+// ─── SHEETS API ───────────────────────────────────────────────
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot' + (state === 'syncing' ? ' syncing' : state === 'error' ? ' error' : '');
+  document.getElementById('statusText').textContent = text;
+}
+
+async function loadData() {
+  setStatus('syncing', 'Data laden uit Google Sheets...');
+  try {
+    const resp = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A:H`,
+    });
+    const rows = resp.result.values || [];
+    if (rows.length < 2) {
+      // Sheet is leeg, headers instellen
+      await initSheet();
+      data = [];
+    } else {
+      // Sla header over (rij 0)
+      data = rows.slice(1).map(r => ({
+        datum: r[0] || '',
+        opwek: parseFloat(r[1]) || 0,
+        teruggeleverd: parseFloat(r[2]) || 0,
+        uit_net: parseFloat(r[3]) || 0,
+        zelf: parseFloat(r[4]) || 0,
+        totaal: parseFloat(r[5]) || 0,
+        auto_groen: parseFloat(r[6]) || 0,
+        auto_net: parseFloat(r[7]) || 0,
+      })).filter(r => r.datum && r.opwek > 0);
+    }
+    setStatus('ok', `${data.length} dagen geladen · Google Sheets`);
+    updateHeader();
+    renderTable();
+  } catch (e) {
+    setStatus('error', 'Fout bij laden — controleer Sheet ID en rechten');
+    showToast('Kon data niet laden', true);
+    loadDemoData();
+  }
+}
+
+async function initSheet() {
+  try {
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A1:H1`,
+      valueInputOption: 'RAW',
+      resource: { values: [['datum','opwek','teruggeleverd','uit_net','zelf','totaal','auto_groen','auto_net']] }
+    });
+  } catch(e) { console.error('Header init mislukt', e); }
+}
+
+async function saveRow(row) {
+  // Check if datum already exists → update that row
+  const existingIdx = data.findIndex(d => d.datum === row.datum);
+  if (existingIdx >= 0) {
+    const sheetRow = existingIdx + 2; // +1 header, +1 1-indexed
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A${sheetRow}:H${sheetRow}`,
+      valueInputOption: 'RAW',
+      resource: { values: [[row.datum, row.opwek, row.teruggeleverd, row.uit_net, row.zelf, row.totaal, row.auto_groen, row.auto_net]] }
+    });
+  } else {
+    await gapi.client.sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A:H`,
+      valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS',
+      resource: { values: [[row.datum, row.opwek, row.teruggeleverd, row.uit_net, row.zelf, row.totaal, row.auto_groen, row.auto_net]] }
+    });
+  }
+}
+
+async function deleteRow(datum) {
+  // Reload and rewrite without that row
+  data = data.filter(d => d.datum !== datum);
+  // Rewrite all data
+  const rows = [['datum','opwek','teruggeleverd','uit_net','zelf','totaal','auto_groen','auto_net'],
+    ...data.map(r => [r.datum, r.opwek, r.teruggeleverd, r.uit_net, r.zelf, r.totaal, r.auto_groen, r.auto_net])
+  ];
+  try {
+    await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `${SHEET_NAME}!A:H` });
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID, range: `${SHEET_NAME}!A1`,
+      valueInputOption: 'RAW', resource: { values: rows }
+    });
+    showToast('Rij verwijderd');
+  } catch(e) { showToast('Verwijderen mislukt', true); }
+  updateHeader(); renderTable();
+}
+
+// ─── DEMO DATA (wanneer geen Google auth) ─────────────────────
+function loadDemoData() {
+  data = [
+    {datum:'2026-03-19',opwek:42.3,teruggeleverd:24.01,uit_net:17.25,zelf:18.29,totaal:35.54,auto_groen:5.5,auto_net:0.7},
+    {datum:'2026-03-22',opwek:45.5,teruggeleverd:14.89,uit_net:23.51,zelf:30.61,totaal:54.12,auto_groen:14.9,auto_net:0.6},
+    {datum:'2026-03-25',opwek:28.7,teruggeleverd:11.53,uit_net:22.71,zelf:17.17,totaal:39.88,auto_groen:7.9,auto_net:0.8},
+    {datum:'2026-04-06',opwek:50.09,teruggeleverd:31.81,uit_net:14.11,zelf:18.29,totaal:32.4,auto_groen:0.0,auto_net:0.0},
+    {datum:'2026-04-07',opwek:52.77,teruggeleverd:32.13,uit_net:15.98,zelf:20.57,totaal:36.55,auto_groen:5.8,auto_net:0.1},
+    {datum:'2026-04-14',opwek:43.2,teruggeleverd:30.13,uit_net:12.01,zelf:13.07,totaal:25.08,auto_groen:0.0,auto_net:0.0},
+    {datum:'2026-04-21',opwek:60.0,teruggeleverd:24.83,uit_net:17.75,zelf:35.17,totaal:52.92,auto_groen:19.6,auto_net:1.4},
+    {datum:'2026-04-22',opwek:57.59,teruggeleverd:32.61,uit_net:13.38,zelf:24.99,totaal:38.37,auto_groen:9.3,auto_net:0.1},
+    {datum:'2026-04-23',opwek:60.6,teruggeleverd:29.96,uit_net:14.71,zelf:30.64,totaal:45.35,auto_groen:13.1,auto_net:0.2},
+    {datum:'2026-04-24',opwek:47.4,teruggeleverd:30.7,uit_net:15.77,zelf:16.7,totaal:32.47,auto_groen:0.0,auto_net:0.0},
+  ];
+  setStatus('ok', 'Demo modus — log in voor echte data sync');
+  updateHeader(); renderTable();
+}
+
+// ─── ADD ENTRY ────────────────────────────────────────────────
+function overschrijf() {
+  window._overschrijfBevestigd = true;
+  document.getElementById('formMsg').textContent = '';
+  addEntry();
+}
+
+function annuleer() {
+  window._overschrijfBevestigd = false;
+  document.getElementById('formMsg').textContent = '';
+}
+
+async function addEntry() {
+  const g = id => parseFloat(document.getElementById(id).value);
+  const datum = document.getElementById('f-datum').value;
+  const opwek = g('f-opwek'), zelf = g('f-zelf'), terug = g('f-terug'), uitnet = g('f-uitnet');
+  const autogroen = g('f-autogroen') || 0, autonet = g('f-autonet') || 0, totaal = g('f-totaal');
+
+  if (!datum || isNaN(opwek) || isNaN(terug) || isNaN(uitnet)) {
+    document.getElementById('formMsg').textContent = '⚠️ Vul minimaal datum, opwek, teruglevering en netafname in.';
+    return;
+  }
+
+  // Check of datum al bestaat
+  const bestaatAl = data.find(d => d.datum === datum);
+  if (bestaatAl && !window._overschrijfBevestigd) {
+    const msg = document.getElementById('formMsg');
+    msg.innerHTML = `⚠️ <strong>${datum}</strong> is al ingevoerd. 
+      <button onclick="overschrijf()" style="margin-left:8px;background:var(--sun);color:#0d1117;border:none;border-radius:5px;padding:4px 10px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;">Toch overschrijven</button>
+      <button onclick="annuleer()" style="margin-left:4px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:4px 10px;cursor:pointer;font-family:'Syne',sans-serif;font-size:11px;">Annuleren</button>`;
+    return;
+  }
+  window._overschrijfBevestigd = false;
+
+  const row = {
+    datum, opwek, teruggeleverd: terug, uit_net: uitnet,
+    zelf: isNaN(zelf) ? opwek - terug : zelf,
+    totaal: isNaN(totaal) ? uitnet + (opwek - terug) : totaal,
+    auto_groen: autogroen, auto_net: autonet
+  };
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Opslaan...';
+  document.getElementById('formMsg').textContent = '';
+  setStatus('syncing', 'Opslaan in Google Sheets...');
+
+  try {
+    await saveRow(row);
+    // Update local data
+    data = data.filter(d => d.datum !== datum);
+    data.push(row);
+    data.sort((a,b) => a.datum.localeCompare(b.datum));
+
+    setStatus('ok', `Opgeslagen · ${data.length} dagen`);
+    showToast('✓ Opgeslagen in Google Sheets!');
+
+    // Quick summary
+    document.getElementById('kLatestOpwek').textContent = opwek.toFixed(1);
+    document.getElementById('kLatestUitnet').textContent = uitnet.toFixed(1);
+    document.getElementById('kLatestTerug').textContent = terug.toFixed(1);
+    document.getElementById('kLatestZelf').textContent = opwek > 0 ? ((opwek-terug)/opwek*100).toFixed(1) : '0';
+    document.getElementById('todayKpis').style.display = 'grid';
+
+    updateHeader();
+    renderTable();
+  } catch(e) {
+    setStatus('error', 'Opslaan mislukt');
+    showToast('Opslaan mislukt — controleer verbinding', true);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '+ Dag opslaan in Google Sheets';
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────
+function avg(arr) { return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0; }
+function fmt(n, d=1) { return (+n).toFixed(d); }
+
+function updateHeader() {
+  const d = data.filter(r => r.opwek > 0);
+  document.getElementById('hTotaalOpwek').textContent = fmt(d.reduce((s,r)=>s+r.opwek,0)) + ' kWh';
+  document.getElementById('hTotaalTerug').textContent = fmt(d.reduce((s,r)=>s+r.teruggeleverd,0)) + ' kWh';
+  document.getElementById('hDagen').textContent = d.length;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['invoer','dashboard','batterij','data'][i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'batterij') renderBatterij();
+}
+
+function showToast(msg, err=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (err ? ' error-toast' : '') + ' show';
+  setTimeout(() => t.className = 'toast' + (err ? ' error-toast' : ''), 3000);
+}
+
+function renderTable() {
+  const tb = document.getElementById('dataTable');
+  if (!data.length) {
+    tb.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-icon">📂</div><div class="empty-text">Nog geen data. Voer je eerste dag in!</div></div></td></tr>`;
+    return;
+  }
+  const C = { sun:'#f5a623', orange:'#fb923c', blue:'#3b82f6', green:'#22c55e' };
+  tb.innerHTML = [...data].sort((a,b)=>b.datum.localeCompare(a.datum)).map(r => `
+    <tr>
+      <td>${r.datum}</td>
+      <td style="color:${C.sun}">${fmt(r.opwek)}</td>
+      <td>${fmt(r.zelf)}</td>
+      <td style="color:${C.orange}">${fmt(r.teruggeleverd)}</td>
+      <td style="color:${C.blue}">${fmt(r.uit_net)}</td>
+      <td style="color:${C.green}">${fmt(r.auto_groen)}</td>
+      <td>${fmt(r.auto_net)}</td>
+      <td>${fmt(r.totaal)}</td>
+      <td class="td-del" onclick="deleteRow('${r.datum}')">×</td>
+    </tr>`).join('');
+}
+
+// ─── CHARTS ───────────────────────────────────────────────────
+const G = { grid: { color: 'rgba(255,255,255,0.05)' } };
+const T = { color: '#7d8590', font: { family: 'DM Mono', size: 10 } };
+const baseOpts = {
+  responsive: true,
+  plugins: { legend: { labels: { color: '#7d8590', font: { family: 'DM Mono', size: 11 }, boxWidth: 12 } } },
+  scales: { x: { ticks: { ...T, maxRotation: 60 }, grid: G }, y: { ticks: T, grid: G } }
+};
+const C = { sun:'#f5a623',sunA:'rgba(245,166,35,0.3)',blue:'#3b82f6',blueA:'rgba(59,130,246,0.3)',green:'#22c55e',greenA:'rgba(34,197,94,0.3)',red:'#ef4444',redA:'rgba(239,68,68,0.3)',orange:'#fb923c',orangeA:'rgba(251,146,60,0.3)' };
+function dc(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function renderDashboard() {
+  const d = data.filter(r => r.opwek > 0);
+  if (!d.length) return;
+  const labels = d.map(r => r.datum.slice(5));
+  const zelfPcts = d.map(r => r.opwek > 0 ? +(r.zelf/r.opwek*100).toFixed(1) : 0);
+
+  document.getElementById('kGemOpwek').textContent = fmt(avg(d.map(r=>r.opwek)));
+  document.getElementById('kGemTerug').textContent = fmt(avg(d.map(r=>r.teruggeleverd)));
+  document.getElementById('kGemUitnet').textContent = fmt(avg(d.map(r=>r.uit_net)));
+  document.getElementById('kZelfPct').textContent = fmt(avg(zelfPcts)) + '%';
+  document.getElementById('kMaxOpwek').textContent = fmt(Math.max(...d.map(r=>r.opwek)));
+  document.getElementById('kDagen').textContent = d.length;
+
+  dc('chartMain');
+  charts['chartMain'] = new Chart(document.getElementById('chartMain'), { type:'bar', data:{ labels, datasets:[
+    { label:'Opwek', data:d.map(r=>r.opwek), backgroundColor:C.sunA, borderColor:C.sun, borderWidth:1.5, borderRadius:2 },
+    { label:'Teruggeleverd', data:d.map(r=>r.teruggeleverd), backgroundColor:C.orangeA, borderColor:C.orange, borderWidth:1.5, borderRadius:2 },
+    { label:'Uit net', data:d.map(r=>r.uit_net), backgroundColor:C.blueA, borderColor:C.blue, borderWidth:1.5, borderRadius:2 },
+  ]}, options:{ ...baseOpts } });
+
+  dc('chartZelf');
+  charts['chartZelf'] = new Chart(document.getElementById('chartZelf'), { type:'line', data:{ labels, datasets:[{
+    label:'Zelfverbruik %', data:zelfPcts, borderColor:C.green, backgroundColor:C.greenA, fill:true, tension:0.3, pointRadius:3, borderWidth:2
+  }]}, options:{ ...baseOpts, scales:{ x:baseOpts.scales.x, y:{ ...baseOpts.scales.y, min:0, max:100, ticks:{ ...T, callback:v=>v+'%' } } } } });
+
+  dc('chartAuto');
+  charts['chartAuto'] = new Chart(document.getElementById('chartAuto'), { type:'bar', data:{ labels, datasets:[
+    { label:'Groen laden', data:d.map(r=>r.auto_groen), backgroundColor:C.greenA, borderColor:C.green, borderWidth:1.5, borderRadius:2 },
+    { label:'Uit net laden', data:d.map(r=>r.auto_net), backgroundColor:C.blueA, borderColor:C.blue, borderWidth:1.5, borderRadius:2 },
+  ]}, options:{ ...baseOpts } });
+
+  const balans = d.map(r => +(r.opwek-r.uit_net).toFixed(2));
+  dc('chartBalans');
+  charts['chartBalans'] = new Chart(document.getElementById('chartBalans'), { type:'bar', data:{ labels, datasets:[{
+    label:'Energie balans (kWh)', data:balans,
+    backgroundColor:balans.map(v=>v>=0?C.greenA:C.redA), borderColor:balans.map(v=>v>=0?C.green:C.red), borderWidth:1.5, borderRadius:2
+  }]}, options:{ ...baseOpts } });
+}
+
+function renderBatterij() {
+  const d = data.filter(r => r.opwek > 0);
+  if (!d.length) return;
+  const terugArr = d.map(r=>r.teruggeleverd);
+  const gemTerug = avg(terugArr), maxTerug = Math.max(...terugArr);
+  const caps = [10,15,20];
+  const coverage = caps.map(cap => avg(terugArr.map(t=>Math.min(t,cap)))/gemTerug*100);
+  const savings = caps.map(cap => avg(terugArr.map(t=>Math.min(t,cap)))*365*WINST_PER_KWH);
+
+  ['10','15','20'].forEach((c,i) => {
+    const cap = parseInt(c);
+    document.getElementById(`adv${c}`).textContent = `Dekt gemiddeld ${fmt(coverage[i])}% van je dagelijkse teruglevering (gem. ${fmt(gemTerug)} kWh). Op ${terugArr.filter(t=>t>cap).length} van de ${d.length} dagen loop je over.`;
+    document.getElementById(`sav${c}`).textContent = `~€${fmt(savings[i],0)} extra besparing/jaar`;
+  });
+
+  const bins=[0,5,10,15,20,25,30,35,40];
+  const binLabels=bins.slice(0,-1).map((b,i)=>`${b}–${bins[i+1]}`);
+  const binCounts=binLabels.map((_,i)=>terugArr.filter(t=>t>=bins[i]&&t<bins[i+1]).length);
+  const labels=d.map(r=>r.datum.slice(5));
+
+  dc('chartTerug');
+  charts['chartTerug'] = new Chart(document.getElementById('chartTerug'), { type:'bar', data:{ labels:binLabels, datasets:[{ label:'Aantal dagen', data:binCounts, backgroundColor:C.orangeA, borderColor:C.orange, borderWidth:1.5, borderRadius:3 }]}, options:{...baseOpts,plugins:{legend:{display:false}}} });
+
+  dc('chartBatterij');
+  charts['chartBatterij'] = new Chart(document.getElementById('chartBatterij'), { type:'bar', data:{ labels:['10 kWh','15 kWh','20 kWh'], datasets:[{ label:'% gedekt', data:coverage.map(v=>+v.toFixed(1)), backgroundColor:[C.greenA,C.sunA,C.blueA], borderColor:[C.green,C.sun,C.blue], borderWidth:2, borderRadius:5 }]}, options:{ ...baseOpts, plugins:{ legend:{ display:false } }, scales:{ x:baseOpts.scales.x, y:{ ...baseOpts.scales.y, min:0, max:100, ticks:{ ...T, callback:v=>v+'%' }, grid:G } } } });
+
+  dc('chartPotentieel');
+  charts['chartPotentieel'] = new Chart(document.getElementById('chartPotentieel'), { type:'bar', data:{ labels, datasets:[
+    { label:'Teruglevering (kWh)', data:terugArr, backgroundColor:C.orangeA, borderColor:C.orange, borderWidth:1.5, borderRadius:2 },
+    { label:'15 kWh grens', data:new Array(d.length).fill(15), type:'line', borderColor:C.sun, borderWidth:2, borderDash:[6,4], pointRadius:0 },
+  ]}, options:{ ...baseOpts } });
+}
+
+// Set today's date
+document.getElementById('f-datum').value = new Date().toISOString().split('T')[0];
+</script>
+
+<!-- Load Google APIs -->
+<script async defer src="https://apis.google.com/js/api.js" onload="gapiInit()"></script>
+<script async defer src="https://accounts.google.com/gsi/client" onload="gisInit()"></script>
+
+</body>
+</html>
