@@ -2692,6 +2692,17 @@ async function addEntry() {
     showToast('✓ Opgeslagen in Google Sheets!');
     setVolgendeDatum();
 
+    // Reset alle invoervelden behalve datum (die springt naar volgende dag)
+    ['f-opwek','f-zelf','f-terug','f-uitnet','f-autogroen','f-autonet','f-totaal','f-gas'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    const weerEl2 = document.getElementById('f-weer');
+    if (weerEl2) weerEl2.value = '';
+    const weerStatus2 = document.getElementById('weerStatus');
+    if (weerStatus2) weerStatus2.textContent = '(wordt automatisch opgehaald)';
+    document.getElementById('formMsg').textContent = '';
+
     document.getElementById('kLatestOpwek').textContent = opwek.toFixed(1);
     document.getElementById('kLatestUitnet').textContent = uitnet.toFixed(1);
     document.getElementById('kLatestTerug').textContent = terug.toFixed(1);
