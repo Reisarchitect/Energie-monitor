@@ -1929,7 +1929,7 @@
             </div>
             <div class="field">
               <label>Installatiedatum</label>
-              <input type="date" id="pvgisInstallDatum" value="2025-03-19" oninput="savePvgisConfig();renderPrognose();renderDashboardWidgets&&renderDashboardWidgets()">
+              <input type="date" id="pvgisInstallDatum" value="2026-03-19" oninput="savePvgisConfig();renderPrognose();renderDashboardWidgets&&renderDashboardWidgets()">
             </div>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;">
@@ -1981,6 +1981,17 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title-block">
+            <div class="card-eyebrow">Verdeling</div>
+            <div class="card-title">Opwek per dag — verdeling</div>
+            <div class="card-sub">Hoeveel dagen vielen in welke opwek-categorie?</div>
+          </div>
+        </div>
+        <canvas id="chartDagverdeling" height="80"></canvas>
+        <div id="dagverdelingStats" style="margin-top:14px;padding:12px 16px;background:rgba(201,168,76,0.06);border:1px solid var(--line-gold);border-radius:10px;font-size:12px;color:var(--ivory);font-family:var(--font-mono);line-height:1.7;"></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-block">
             <div class="card-eyebrow">Schema</div>
             <div class="card-title">Ligt je op schema?</div>
           </div>
@@ -1991,6 +2002,17 @@
 
     <!-- VOORSPELLING -->
     <div class="panel" id="panel-voorspelling">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-block">
+            <div class="card-eyebrow">Continue voorspellingen</div>
+            <div class="card-title">📅 Voorspellingen blijven bewaard</div>
+            <div class="card-sub">Elke open-sessie wordt het 7-daagse forecast-venster opgeslagen. Per datum gebruikt het systeem altijd de meest recente (= scherpste) voorspelling.</div>
+          </div>
+          <button class="btn-primary" onclick="handleBackfillKnop()" style="padding:8px 14px;font-size:12px;">Backfill langer geleden</button>
+        </div>
+        <div id="backfillStatus" style="margin-top:8px;padding:12px 16px;background:rgba(127,163,125,0.06);border:1px solid var(--line-gold);border-radius:10px;font-size:12px;color:var(--ivory);font-family:var(--font-mono);line-height:1.6;">Voorspellingen voor de komende 7 dagen worden automatisch opgeslagen bij elke tab-opening. De knop hierboven is voor noodgevallen: als je langer dan 7 dagen weg bent geweest, kun je daarmee historisch weer ophalen voor die periode (als post-hoc schatting).</div>
+      </div>
       <div class="card">
         <div class="card-header">
           <div class="card-title-block">
@@ -3023,7 +3045,7 @@ function renderDashboardWidgets() {
   const opwekDitJaar = dagenDitJaar.reduce((s,r) => s + r.opwek, 0);
   const totaalJaarTarget = Object.values(MT).reduce((a,b) => a+b, 0);
   // Installatiedatum: als panelen pas later in jaar geinstalleerd, target voor pre-installatie maanden = 0
-  const installDatum = getInstallDatum ? getInstallDatum() : '2025-03-19';
+  const installDatum = getInstallDatum ? getInstallDatum() : '2026-03-19';
   const installInDitJaar = installDatum.startsWith(huidigJaar);
   const installMaand = installInDitJaar ? parseInt(installDatum.slice(5,7)) : 0;
   const installDag = installInDitJaar ? parseInt(installDatum.slice(8,10)) : 1;
@@ -3572,13 +3594,18 @@ function loadPvgisInstellingen() {
   updatePvgisJaartotaal();
 }
 
-// Helper om installdatum op te halen (default 2025-03-19)
+// Helper om installdatum op te halen (default 2026-03-19)
 function getInstallDatum() {
   try {
     const cfg = JSON.parse(localStorage.getItem('em_pvgis') || '{}');
-    return cfg.installdatum || '2025-03-19';
+    // Eenmalige correctie: oude verkeerde default 2025-03-19 vervangen door 2026-03-19
+    if (cfg.installdatum === '2025-03-19') {
+      cfg.installdatum = '2026-03-19';
+      localStorage.setItem('em_pvgis', JSON.stringify(cfg));
+    }
+    return cfg.installdatum || '2026-03-19';
   } catch (e) {
-    return '2025-03-19';
+    return '2026-03-19';
   }
 }
 
@@ -3602,7 +3629,7 @@ function savePvgisConfig() {
       const totaal = Object.values(cfg.maanden).reduce((a,b) => a+b, 0);
       subEl.textContent = `Target: ${totaal.toLocaleString('nl-NL')} kWh (eigen PVGIS-data) · Installatie: ${cfg.installdatum}`;
     } else {
-      subEl.textContent = `Target: 9.884 kWh (PVGIS-SARAH3 default) · 20×435Wp ZO + 8×435Wp NW · Dakhoek 44° · Installatie: ${cfg.installdatum || '2025-03-19'}`;
+      subEl.textContent = `Target: 9.884 kWh (PVGIS-SARAH3 default) · 20×435Wp ZO + 8×435Wp NW · Dakhoek 44° · Installatie: ${cfg.installdatum || '2026-03-19'}`;
     }
   }
 }
@@ -3962,6 +3989,8 @@ function renderPrognose() {
   document.getElementById('pgDagen').textContent = d.length;
   document.getElementById('pgGemDag').textContent = fmt(gemDag);
 
+  renderDagverdeling(d);
+
   // Progress bar
   const barEl = document.getElementById('prognoseBar');
   const barPct = Math.min(100, pct);
@@ -4018,6 +4047,151 @@ function renderPrognose() {
   advEl.innerHTML = advTekst + `<br><br><span style="font-size:11px;color:var(--slate);">Extrapolatie is gebaseerd op ${d.length} beschikbare meetdagen met seizoenscorrectie via PVGIS-jaarverdeling.</span>` + waarschuwingP;
 }
 
+// ─── BACKFILL VOORSPELLINGEN (post-hoc, voor periodes >7 dagen weg) ───
+async function backfillVoorspellingen() {
+  // Bouw weertype-gemiddelden
+  const d = data.filter(r => r.opwek > 0 && r.weer);
+  if (!d.length) return { added: 0, error: 'Geen historische data om mee te schatten.' };
+  const weertypes = ['☀️ Zonnig','🌤️ Half bewolkt','☁️ Bewolkt','🌧️ Regenachtig'];
+  const gemPerType = {};
+  weertypes.forEach(type => {
+    const match = d.filter(r => r.weer && r.weer.includes(type.replace(/[^\w\s]/g,'').trim().split(' ')[0]));
+    gemPerType[type] = match.length ? avg(match.map(r=>r.opwek)) : null;
+  });
+  const fallbackAvg = avg(d.map(r=>r.opwek)) * 0.6;
+
+  // Datumbereik: vanaf install (of vroegste data-datum) t/m gisteren
+  const installDatum = getInstallDatum();
+  const dataDates = data.map(r => r.datum).filter(Boolean).sort();
+  const startStr = dataDates.length && dataDates[0] < installDatum ? dataDates[0] : installDatum;
+  const ystr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  if (startStr > ystr) return { added: 0, skipped: 0 };
+
+  // Eén bulk-call voor historisch weer (Open-Meteo archive ondersteunt lange ranges)
+  let weerMap = {};
+  try {
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${LOC_LAT}&longitude=${LOC_LON}&daily=weathercode&start_date=${startStr}&end_date=${ystr}&timezone=Europe/Amsterdam`;
+    const resp = await fetch(url);
+    const json = await resp.json();
+    if (json.daily?.time) {
+      json.daily.time.forEach((datum, i) => {
+        const code = json.daily.weathercode[i];
+        if (code !== undefined && code !== null) weerMap[datum] = weerLabel(code);
+      });
+    }
+  } catch (e) {
+    return { added: 0, error: 'Open-Meteo archive niet bereikbaar.' };
+  }
+
+  // Voor elke ontbrekende dag: opslaan
+  let added = 0, skipped = 0;
+  const datums = Object.keys(weerMap).sort();
+  for (const datum of datums) {
+    const bestaande = voorspellingen.find(v => v.datum === datum);
+    if (bestaande) { skipped++; continue; }
+    const weerLbl = weerMap[datum];
+    const matchKey = weertypes.find(t => weerLbl.includes(t.replace(/[^\w\s]/g,'').trim().split(' ')[0]));
+    const verwachtOpwek = matchKey && gemPerType[matchKey] ? gemPerType[matchKey] : fallbackAvg;
+    if (verwachtOpwek > 0) {
+      await saveVoorspelling(datum, weerLbl, +verwachtOpwek.toFixed(2));
+      added++;
+    }
+  }
+  return { added, skipped, range: `${startStr} t/m ${ystr}` };
+}
+
+async function handleBackfillKnop() {
+  const statusEl = document.getElementById('backfillStatus');
+  if (statusEl) statusEl.innerHTML = '<span style="color:var(--gold);">⏳ Historisch weer ophalen en gaten opvullen...</span>';
+  const res = await backfillVoorspellingen();
+  if (!statusEl) return;
+  if (res.error) {
+    statusEl.innerHTML = `<span style="color:#B8755C;">⚠ ${res.error}</span>`;
+  } else if (res.added === 0) {
+    statusEl.innerHTML = `<span style="color:var(--c-green);">✓ Geen gaten gevonden — alle dagen zijn al gedekt.</span>`;
+  } else {
+    statusEl.innerHTML = `<span style="color:var(--c-green);">✓ <strong>${res.added}</strong> dagen aangevuld (${res.range})${res.skipped ? `, ${res.skipped} dagen waren al gedekt` : ''}. Let op: dit is een post-hoc schatting op basis van het werkelijk gemeten weer + jouw gemiddelde per weertype.</span>`;
+  }
+  if (typeof renderVoorspelling === 'function') renderVoorspelling();
+}
+
+// ─── DAGVERDELING (opwek-histogram) ───────────────────────────
+function renderDagverdeling(d) {
+  if (!d || !d.length) return;
+  // Buckets van 10 kWh, t/m 70+
+  const buckets = [
+    { label:'0-10',  min:0,  max:10 },
+    { label:'10-20', min:10, max:20 },
+    { label:'20-30', min:20, max:30 },
+    { label:'30-40', min:30, max:40 },
+    { label:'40-50', min:40, max:50 },
+    { label:'50-60', min:50, max:60 },
+    { label:'60-70', min:60, max:70 },
+    { label:'70+',   min:70, max:Infinity },
+  ];
+  const counts = buckets.map(b => d.filter(r => r.opwek >= b.min && r.opwek < b.max).length);
+  const totalDagen = d.length;
+  const opweks = d.map(r => r.opwek);
+  const gem = opweks.reduce((s,v)=>s+v,0) / totalDagen;
+  const sorted = [...opweks].sort((a,b)=>a-b);
+  const mediaan = sorted.length % 2 ? sorted[(sorted.length-1)/2] : (sorted[sorted.length/2-1] + sorted[sorted.length/2])/2;
+  const min = sorted[0];
+  const max = sorted[sorted.length-1];
+
+  dc('chartDagverdeling');
+  charts['chartDagverdeling'] = new Chart(document.getElementById('chartDagverdeling'), {
+    type: 'bar',
+    data: {
+      labels: buckets.map(b => b.label + ' kWh'),
+      datasets: [{
+        label: 'Aantal dagen',
+        data: counts,
+        backgroundColor: C.sunA,
+        borderColor: C.sun,
+        borderWidth: 1.5,
+        borderRadius: 3
+      }]
+    },
+    options: {
+      ...baseOpts,
+      plugins: {
+        ...baseOpts.plugins,
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const n = ctx.raw;
+              const pct = totalDagen > 0 ? (n/totalDagen*100).toFixed(1) : 0;
+              return ` ${n} dagen (${pct}%)`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: baseOpts.scales.x,
+        y: { ...baseOpts.scales.y, ticks: { ...baseOpts.scales.y.ticks, precision: 0 } }
+      }
+    }
+  });
+
+  const statsEl = document.getElementById('dagverdelingStats');
+  if (statsEl) {
+    const rijen = buckets.map((b,i) => {
+      const n = counts[i];
+      const pct = totalDagen > 0 ? (n/totalDagen*100).toFixed(1) : 0;
+      return `<span style="display:inline-block;min-width:120px;"><strong style="color:var(--gold);">${b.label} kWh:</strong> ${n} dagen (${pct}%)</span>`;
+    }).join(' &nbsp; ');
+    statsEl.innerHTML = `
+      <div style="margin-bottom:8px;">${rijen}</div>
+      <div style="color:var(--slate);font-size:11px;border-top:1px solid var(--line-gold);padding-top:8px;margin-top:8px;">
+        Gemiddelde: <strong style="color:var(--ivory);">${fmt(gem,1)} kWh</strong> &nbsp;·&nbsp;
+        Mediaan: <strong style="color:var(--ivory);">${fmt(mediaan,1)} kWh</strong> &nbsp;·&nbsp;
+        Min: <strong style="color:var(--ivory);">${fmt(min,1)} kWh</strong> &nbsp;·&nbsp;
+        Max: <strong style="color:var(--ivory);">${fmt(max,1)} kWh</strong> &nbsp;·&nbsp;
+        Totaal: <strong style="color:var(--ivory);">${totalDagen} meetdagen</strong>
+      </div>`;
+  }
+}
+
 // ─── VOORSPELLING ─────────────────────────────────────────────
 async function renderVoorspelling() {
   const d = data.filter(r => r.opwek > 0 && r.weer);
@@ -4070,9 +4244,20 @@ async function renderVoorspelling() {
   document.getElementById('vwZelf').textContent = fmt(Math.min(100, verwachtZelf));
   document.getElementById('vwWeer').textContent = morgenLabel;
 
-  // Sla voorspelling voor morgen op (idempotent, bestaande wordt niet overschreven)
-  if (typeof saveVoorspelling === 'function' && morgen.datum && verwachtOpwek > 0) {
-    saveVoorspelling(morgen.datum, morgenLabel, +verwachtOpwek.toFixed(2));
+  // Sla voorspellingen voor de komende 7 dagen op (idempotent per dag)
+  // Per datum bewaart het systeem alleen de scherpste (= meest recent opgeslagen) voorspelling
+  const fallbackAvg = d.length ? avg(d.map(r=>r.opwek)) * 0.6 : 0;
+  if (typeof saveVoorspelling === 'function' && days.time && days.time.length) {
+    for (let i = 1; i < days.time.length; i++) { // i=0 is vandaag, skip
+      const dDatum = days.time[i];
+      if (!dDatum) continue;
+      const dLabel = weerLabel(days.weathercode[i]);
+      const dMatchKey = weertypes.find(t => dLabel.includes(t.replace(/[^\w\s]/g,'').trim().split(' ')[0]));
+      const dOpwek = dMatchKey && gemPerType[dMatchKey] ? gemPerType[dMatchKey] : fallbackAvg;
+      if (dOpwek > 0) {
+        await saveVoorspelling(dDatum, dLabel, +dOpwek.toFixed(2));
+      }
+    }
   }
 
   // Planningsadvies
@@ -4586,25 +4771,39 @@ async function loadVoorspellingen() {
     });
     const rows = resp.result.values || [];
     if (rows.length < 2) { voorspellingen = []; return; }
-    voorspellingen = rows.slice(1).map(r => ({
+    const alle = rows.slice(1).map(r => ({
       datum: r[0] || '',
       weertype: r[1] || '',
       verwacht_opwek: parseFloat(r[2]) || 0,
       opgeslagen_op: r[3] || '',
     })).filter(v => v.datum);
+    // Dedupe per datum: behoud entry met meest recente opgeslagen_op (= scherpste voorspelling)
+    const beste = new Map();
+    alle.forEach(v => {
+      const huidig = beste.get(v.datum);
+      if (!huidig || (v.opgeslagen_op || '') > (huidig.opgeslagen_op || '')) {
+        beste.set(v.datum, v);
+      }
+    });
+    voorspellingen = Array.from(beste.values());
   } catch (e) {
     voorspellingen = [];
   }
 }
 
 async function saveVoorspelling(datum, weertype, verwacht_opwek) {
-  // Check of er al een voorspelling voor deze datum is
-  const bestaande = voorspellingen.find(v => v.datum === datum);
-  if (bestaande) return; // niet overschrijven, eerste voorspelling is leidend
-
   const opgeslagen_op = new Date().toISOString().split('T')[0];
+  // Check: bestaat er al een voorspelling die VANDAAG is opgeslagen voor deze datum? Dan skippen.
+  const bestaande = voorspellingen.find(v => v.datum === datum);
+  if (bestaande && bestaande.opgeslagen_op === opgeslagen_op) return;
+
+  // Anders: nieuwe (verser) entry. Update in-memory dedup-resultaat én append naar sheet.
   const nieuwe = { datum, weertype, verwacht_opwek, opgeslagen_op };
-  voorspellingen.push(nieuwe);
+  if (bestaande) {
+    Object.assign(bestaande, nieuwe); // vervang in dedup-map
+  } else {
+    voorspellingen.push(nieuwe);
+  }
 
   try {
     await ensureVoorspellingenSheet();
