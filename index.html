@@ -1633,23 +1633,34 @@
         <details style="margin:12px 0 18px;background:rgba(127,163,125,0.06);border:1px solid var(--c-green);border-radius:10px;padding:12px 16px;" open>
           <summary style="cursor:pointer;color:var(--c-green);font-size:12px;font-family:var(--font-mono);font-weight:600;">▸ JOUW JAARVERBRUIK (vul handmatig in voor accurate berekening)</summary>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px;">
-            <div class="field"><label>Jaarverbruik uit net (kWh)</label><input type="number" id="simJaarInkoop" step="100" placeholder="bv. 10000" oninput="renderDynamischSim()"></div>
-            <div class="field"><label>Jaarteruglevering naar net (kWh)</label><input type="number" id="simJaarTerug" step="100" placeholder="bv. 3500" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Jaarverbruik stroom uit net (kWh)</label><input type="number" id="simJaarInkoop" step="100" placeholder="bv. 10000" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Jaarteruglevering stroom (kWh)</label><input type="number" id="simJaarTerug" step="100" placeholder="bv. 3500" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Jaarverbruik gas (m³)</label><input type="number" id="simJaarGas" step="50" placeholder="bv. 1500" oninput="renderDynamischSim()"></div>
           </div>
           <div style="margin-top:10px;font-size:11px;color:var(--slate);line-height:1.6;">
-            Laat leeg om automatische schatting te gebruiken (dagelijks gemiddelde × 365). Vul je werkelijke verwachting in als je die kent — bv. uit je vorig jaarverbruik gecorrigeerd voor zon en nieuwe apparaten.
+            Laat leeg om automatische schatting te gebruiken. Vul je werkelijke verwachting in als je die kent — bv. uit je vorig jaarverbruik gecorrigeerd voor zon en nieuwe apparaten.
           </div>
         </details>
 
         <details style="margin:12px 0 18px;background:rgba(36,56,96,0.3);border:1px solid var(--line-gold);border-radius:10px;padding:12px 16px;">
-          <summary style="cursor:pointer;color:var(--gold);font-size:12px;font-family:var(--font-mono);">▸ Tarieven aanpassen (ANWB-defaults, klik om te wijzigen)</summary>
+          <summary style="cursor:pointer;color:var(--gold);font-size:12px;font-family:var(--font-mono);">▸ Stroom-tarieven aanpassen (ANWB-defaults)</summary>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px;">
-            <div class="field"><label>Dyn. inkoopprijs (€/kWh)</label><input type="number" id="dynInkoop" step="0.0001" value="0.21121" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Dyn. inkoopprijs stroom (€/kWh)</label><input type="number" id="dynInkoop" step="0.0001" value="0.21121" oninput="renderDynamischSim()"></div>
             <div class="field"><label>Dyn. terug 2026 met saldering (€/kWh)</label><input type="number" id="dynTerug2026" step="0.0001" value="0.16488" oninput="renderDynamischSim()"></div>
             <div class="field"><label>Dyn. terug 2027+ alleen EPEX (€/kWh)</label><input type="number" id="dynTerug2027" step="0.0001" value="0.05" oninput="renderDynamischSim()"></div>
-            <div class="field"><label>Vaste kosten dyn./jr (€)</label><input type="number" id="dynVast" step="1" value="-51" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Vaste kosten stroom dyn./jr (€)</label><input type="number" id="dynVast" step="1" value="-51" oninput="renderDynamischSim()"></div>
             <div class="field"><label>EPEX piek-dal spread (€/kWh)</label><input type="number" id="dynSpread" step="0.01" value="0.20" oninput="renderDynamischSim()"></div>
             <div class="field"><label>Arbitrage-efficiëntie (%)</label><input type="number" id="dynArbEff" step="1" value="75" oninput="renderDynamischSim()"></div>
+          </div>
+        </details>
+
+        <details style="margin:12px 0 18px;background:rgba(36,56,96,0.3);border:1px solid var(--line-gold);border-radius:10px;padding:12px 16px;">
+          <summary style="cursor:pointer;color:var(--gold);font-size:12px;font-family:var(--font-mono);">▸ Gas-tarieven aanpassen (ANWB-defaults)</summary>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px;">
+            <div class="field"><label>Vast inkoop gas (€/m³, all-in)</label><input type="number" id="gasVastTarief" step="0.0001" value="1.21328" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Vaste kosten gas vast/jr (€)</label><input type="number" id="gasVastVast" step="1" value="368" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Dyn. inkoop gas (€/m³, all-in)</label><input type="number" id="gasDynTarief" step="0.0001" value="1.06431" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Vaste kosten gas dyn./jr (€)</label><input type="number" id="gasDynVast" step="1" value="368" oninput="renderDynamischSim()"></div>
           </div>
         </details>
 
@@ -4159,6 +4170,16 @@ function renderDynamischSim() {
   const jaarVerbruikInkoop = (overrideInkoop && overrideInkoop > 0) ? overrideInkoop : autoInkoop;
   const jaarTeruglevering = (overrideTerug && overrideTerug > 0) ? overrideTerug : autoTerug;
 
+  // Gas
+  const overrideGas = parseFloat(document.getElementById('simJaarGas')?.value);
+  const jaarVerbruikGas = (overrideGas && overrideGas > 0) ? overrideGas : 1500; // default schatting
+  const gasVastTarief = parseFloat(document.getElementById('gasVastTarief')?.value) || 1.21328;
+  const gasVastVast = parseFloat(document.getElementById('gasVastVast')?.value) || 368;
+  const gasDynTarief = parseFloat(document.getElementById('gasDynTarief')?.value) || 1.06431;
+  const gasDynVast = parseFloat(document.getElementById('gasDynVast')?.value) || 368;
+  const gasKostenVast = jaarVerbruikGas * gasVastTarief + gasVastVast;
+  const gasKostenDyn = jaarVerbruikGas * gasDynTarief + gasDynVast;
+
   // Batterij effectief
   const bat = (getBatterijConfig() || PYLONTECH[2]); // default 20.2 kWh
   const eff = bat.effectief;
@@ -4196,8 +4217,11 @@ function renderDynamischSim() {
     }
     const kostenInkoop = inkoop * inkoopT;
     const opbrengstTerug = terug * terugT;
-    const totaal = kostenInkoop - opbrengstTerug - arbitrage + vasteK;
-    return { totaal, kostenInkoop, opbrengstTerug, arbitrage, inkoop, terug, vasteK };
+    const stroomTotaal = kostenInkoop - opbrengstTerug - arbitrage + vasteK;
+    // Gas: hangt alleen af van contracttype, niet van batterij
+    const gasTotaal = dynamisch ? gasKostenDyn : gasKostenVast;
+    const totaal = stroomTotaal + gasTotaal;
+    return { totaal, stroomTotaal, gasTotaal, kostenInkoop, opbrengstTerug, arbitrage, inkoop, terug, vasteK };
   }
 
   // 4 scenario's (post-saldering reality vanaf 2027 — relevant voor levensduur batterij)
@@ -4238,10 +4262,9 @@ function renderDynamischSim() {
         ${verschilTekst}
       </div>
       <div style="margin-top:10px;font-size:10px;color:var(--slate);font-family:var(--font-mono);line-height:1.6;">
-        Inkoop: €${fmt(c.res.kostenInkoop,0)}/jr<br>
-        Terug-credit: −€${fmt(c.res.opbrengstTerug,0)}/jr<br>
-        ${c.res.arbitrage > 0 ? `Arbitragewinst: −€${fmt(c.res.arbitrage,0)}/jr<br>` : ''}
-        Vaste kosten: ${c.res.vasteK < 0 ? '−' : ''}€${fmt(Math.abs(c.res.vasteK),0)}/jr
+        ⚡ <strong style="color:var(--ivory);">Stroom: €${fmt(c.res.stroomTotaal,0)}/jr</strong><br>
+        &nbsp;&nbsp;Inkoop: €${fmt(c.res.kostenInkoop,0)} · Terug: −€${fmt(c.res.opbrengstTerug,0)}${c.res.arbitrage > 0 ? ` · Arbitrage: −€${fmt(c.res.arbitrage,0)}` : ''} · Vast: ${c.res.vasteK < 0 ? '−' : ''}€${fmt(Math.abs(c.res.vasteK),0)}<br>
+        🔥 <strong style="color:var(--ivory);">Gas: €${fmt(c.res.gasTotaal,0)}/jr</strong>
       </div>
     </div>`;
   }
@@ -4250,11 +4273,15 @@ function renderDynamischSim() {
 
   // Context-uitleg bovenaan
   if (ctxEl) {
+    const useOverrideInkoop = overrideInkoop && overrideInkoop > 0;
+    const useOverrideTerug = overrideTerug && overrideTerug > 0;
+    const useOverrideGas = overrideGas && overrideGas > 0;
     ctxEl.innerHTML = `
-      <strong style="color:var(--gold);">Op basis van jouw ${d.length} meetdagen</strong> (${(gewogenJaarFractie*100).toFixed(1)}% van jaarproductie gedekt via PVGIS-correctie):<br>
-      Geschat jaarverbruik uit het net: <strong>${fmt(jaarVerbruikInkoop,0)} kWh</strong> ·
-      teruglevering naar net: <strong>${fmt(jaarTeruglevering,0)} kWh</strong> ·
-      batterij ${bat.label || bat.capaciteit} kWh (${fmt(eff,1)} kWh effectief) slaat ~<strong>${fmt(jaarOpgeslagen,0)} kWh/jaar</strong> op.
+      <strong style="color:var(--gold);">Berekening op basis van:</strong><br>
+      ⚡ Jaarverbruik stroom uit net: <strong>${fmt(jaarVerbruikInkoop,0)} kWh</strong> ${useOverrideInkoop ? '<span style="color:var(--c-green);">(handmatig)</span>' : '<span style="color:#B8755C;">(auto-schatting, vul je werkelijke verbruik in!)</span>'} ·
+      teruglevering: <strong>${fmt(jaarTeruglevering,0)} kWh</strong> ${useOverrideTerug ? '<span style="color:var(--c-green);">(handmatig)</span>' : '<span style="color:#B8755C;">(auto)</span>'}<br>
+      🔥 Jaarverbruik gas: <strong>${fmt(jaarVerbruikGas,0)} m³</strong> ${useOverrideGas ? '<span style="color:var(--c-green);">(handmatig)</span>' : '<span style="color:#B8755C;">(default 1500)</span>'}<br>
+      🔋 Batterij ${bat.label || bat.capaciteit} kWh (${fmt(eff,1)} kWh effectief) slaat ~<strong>${fmt(jaarOpgeslagen,0)} kWh/jaar</strong> op.
     `;
   }
 }
