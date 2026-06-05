@@ -1630,6 +1630,17 @@
           </div>
         </div>
 
+        <details style="margin:12px 0 18px;background:rgba(127,163,125,0.06);border:1px solid var(--c-green);border-radius:10px;padding:12px 16px;" open>
+          <summary style="cursor:pointer;color:var(--c-green);font-size:12px;font-family:var(--font-mono);font-weight:600;">▸ JOUW JAARVERBRUIK (vul handmatig in voor accurate berekening)</summary>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px;">
+            <div class="field"><label>Jaarverbruik uit net (kWh)</label><input type="number" id="simJaarInkoop" step="100" placeholder="bv. 10000" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Jaarteruglevering naar net (kWh)</label><input type="number" id="simJaarTerug" step="100" placeholder="bv. 3500" oninput="renderDynamischSim()"></div>
+          </div>
+          <div style="margin-top:10px;font-size:11px;color:var(--slate);line-height:1.6;">
+            Laat leeg om automatische schatting te gebruiken (dagelijks gemiddelde × 365). Vul je werkelijke verwachting in als je die kent — bv. uit je vorig jaarverbruik gecorrigeerd voor zon en nieuwe apparaten.
+          </div>
+        </details>
+
         <details style="margin:12px 0 18px;background:rgba(36,56,96,0.3);border:1px solid var(--line-gold);border-radius:10px;padding:12px 16px;">
           <summary style="cursor:pointer;color:var(--gold);font-size:12px;font-family:var(--font-mono);">▸ Tarieven aanpassen (ANWB-defaults, klik om te wijzigen)</summary>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px;">
@@ -1644,15 +1655,12 @@
 
         <div id="dynamischSimContext" style="margin-bottom:14px;font-size:12px;color:var(--ivory);line-height:1.6;"></div>
 
-        <h4 style="color:var(--gold);font-family:var(--font-mono);font-size:11px;text-transform:uppercase;margin:18px 0 10px;letter-spacing:0.5px;">📅 Vandaag (saldering nog actief in 2026)</h4>
-        <div id="dynamischSimGrid2026" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;"></div>
-
-        <h4 style="color:#B8755C;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;margin:24px 0 10px;letter-spacing:0.5px;">📅 Vanaf 01-01-2027 (saldering vervalt)</h4>
-        <div id="dynamischSimGrid2027" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;"></div>
+        <div id="dynamischSimGrid2027" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:8px;"></div>
 
         <div style="margin-top:18px;padding:14px 18px;background:rgba(201,168,76,0.06);border:1px solid var(--line-gold);border-radius:10px;font-size:12px;color:var(--ivory);line-height:1.7;">
-          <strong style="color:var(--gold);">Hoe lees je dit?</strong> Elke tegel toont je geschatte maandbedrag voor stroom (inkoop − teruglevering − arbitragewinst + vaste kosten). De groene tegel is steeds de gunstigste optie. Het verschil onderaan is de besparing per jaar t.o.v. je huidige situatie.<br><br>
-          <strong style="color:var(--gold);">Wat is arbitrage?</strong> Met een dynamisch contract varieert de stroomprijs per uur. Je batterij vult zich tijdens goedkope uren (nachts of zonnige middag) en ontlaadt tijdens dure avondspits. De winst per opgeslagen kWh = ongeveer €0,20 × 75% efficiëntie = €0,15/kWh. Vereist actieve sturing (HomeWizard EMS, EVCC, etc.).
+          <strong style="color:var(--gold);">Hoe lees je dit?</strong> Elke tegel toont wat je per jaar betaalt voor stroom in de situatie ná 1-1-2027 (saldering vervalt). De groene tegel is de gunstigste optie. Onderaan elke tegel staat het verschil per jaar t.o.v. je huidige situatie (vast contract zonder batterij).<br><br>
+          <strong style="color:var(--gold);">Waarom alleen post-2027?</strong> De batterij gaat 12-15 jaar mee, dus dit is de relevante "lange-termijn realiteit". In 2026 (laatste 7 maanden saldering) is het beeld nóg gunstiger voor batterij, want elke teruggeleverde kWh is dan nog €0,13 of meer waard. Wat je hier ziet is dus de **conservatieve** schatting.<br><br>
+          <strong style="color:var(--gold);">Wat is arbitrage?</strong> Met een dynamisch contract varieert de stroomprijs per uur. Je batterij vult zich tijdens goedkope uren (nachts of zonnige middag) en ontlaadt tijdens dure avondspits. Winst per opgeslagen kWh ≈ €0,20 spread × 75% efficiëntie = €0,15/kWh. Vereist actieve sturing (HomeWizard EMS, EVCC, etc.).
         </div>
       </div>
 
@@ -4111,10 +4119,9 @@ function renderPrognose() {
 function renderDynamischSim() {
   const MT = getMaandTarget();
   const d = data.filter(r => r.opwek > 0);
-  const grid2026 = document.getElementById('dynamischSimGrid2026');
   const grid2027 = document.getElementById('dynamischSimGrid2027');
   const ctxEl = document.getElementById('dynamischSimContext');
-  if (!grid2026 || !grid2027 || !d.length) return;
+  if (!grid2027 || !d.length) return;
 
   // Inputs
   const dynInkoop = parseFloat(document.getElementById('dynInkoop')?.value) || 0.21121;
@@ -4139,8 +4146,18 @@ function renderDynamischSim() {
 
   const totalUitNet = d.reduce((s,r)=>s+r.uit_net, 0);
   const totalTerug = d.reduce((s,r)=>s+r.teruggeleverd, 0);
-  const jaarVerbruikInkoop = gewogenJaarFractie > 0 ? totalUitNet / gewogenJaarFractie : totalUitNet * 365/d.length;
-  const jaarTeruglevering = gewogenJaarFractie > 0 ? totalTerug / gewogenJaarFractie : totalTerug * 365/d.length;
+
+  // Override: handmatig ingevuld jaarverbruik heeft voorrang
+  const overrideInkoop = parseFloat(document.getElementById('simJaarInkoop')?.value);
+  const overrideTerug  = parseFloat(document.getElementById('simJaarTerug')?.value);
+
+  // Auto-schatting via kalender-extrapolatie (geen PVGIS-weging, eerlijker voor inkoop)
+  // Voor teruglevering wel PVGIS-weging (hangt direct samen met zonneproductie)
+  const autoInkoop = totalUitNet * 365 / d.length;
+  const autoTerug = gewogenJaarFractie > 0 ? totalTerug / gewogenJaarFractie : totalTerug * 365 / d.length;
+
+  const jaarVerbruikInkoop = (overrideInkoop && overrideInkoop > 0) ? overrideInkoop : autoInkoop;
+  const jaarTeruglevering = (overrideTerug && overrideTerug > 0) ? overrideTerug : autoTerug;
 
   // Batterij effectief
   const bat = (getBatterijConfig() || PYLONTECH[2]); // default 20.2 kWh
@@ -4183,25 +4200,18 @@ function renderDynamischSim() {
     return { totaal, kostenInkoop, opbrengstTerug, arbitrage, inkoop, terug, vasteK };
   }
 
-  // Scenario's per jaar
-  const cells2026 = [
-    { naam: 'Huidig vast', sub: 'zonder batterij',  res: scenario(vastInkoop, vastTerug2026, vastVast, false, false, false), kleur: 'gold' },
-    { naam: 'Huidig vast', sub: 'met batterij',     res: scenario(vastInkoop, vastTerug2026, vastVast, true,  false, false), kleur: 'gold' },
-    { naam: 'ANWB dyn.',   sub: 'zonder batterij',  res: scenario(dynInkoop,  dynTerug2026, dynVast,   false, true,  false), kleur: 'teal' },
-    { naam: 'ANWB dyn.',   sub: 'met batterij',     res: scenario(dynInkoop,  dynTerug2026, dynVast,   true,  true,  false), kleur: 'green' },
-  ];
+  // 4 scenario's (post-saldering reality vanaf 2027 — relevant voor levensduur batterij)
   const cells2027 = [
-    { naam: 'Huidig vast', sub: 'zonder batterij',  res: scenario(vastInkoop, vastTerug2027, vastVast, false, false, true), kleur: 'red' },
-    { naam: 'Huidig vast', sub: 'met batterij',     res: scenario(vastInkoop, vastTerug2027, vastVast, true,  false, true), kleur: 'gold' },
-    { naam: 'ANWB dyn.',   sub: 'zonder batterij',  res: scenario(dynInkoop,  dynTerug2027, dynVast,   false, true,  true), kleur: 'teal' },
-    { naam: 'ANWB dyn.',   sub: 'met batterij',     res: scenario(dynInkoop,  dynTerug2027, dynVast,   true,  true,  true), kleur: 'green' },
+    { naam: 'Huidig vast contract', sub: 'zonder batterij',  res: scenario(vastInkoop, vastTerug2027, vastVast, false, false, true), kleur: 'red' },
+    { naam: 'Huidig vast contract', sub: 'met 20 kWh batterij',     res: scenario(vastInkoop, vastTerug2027, vastVast, true,  false, true), kleur: 'gold' },
+    { naam: 'ANWB dynamisch',   sub: 'zonder batterij',  res: scenario(dynInkoop,  dynTerug2027, dynVast,   false, true,  true), kleur: 'teal' },
+    { naam: 'ANWB dynamisch',   sub: 'met 20 kWh batterij + EMS',     res: scenario(dynInkoop,  dynTerug2027, dynVast,   true,  true,  true), kleur: 'green' },
   ];
 
-  // Baseline = huidige situatie (vast 2026 zonder batterij)
-  const baseline = cells2026[0].res.totaal;
+  // Baseline = huidig vast zonder batterij (eerste tegel)
+  const baseline = cells2027[0].res.totaal;
 
-  // Bepaal beste optie per jaar (laagste totaal) voor visuele markering
-  const beste2026 = cells2026.reduce((min, c) => c.res.totaal < min.res.totaal ? c : min, cells2026[0]);
+  // Bepaal beste optie (laagste totaal) voor visuele markering
   const beste2027 = cells2027.reduce((min, c) => c.res.totaal < min.res.totaal ? c : min, cells2027[0]);
 
   function renderTegel(c, beste) {
@@ -4236,7 +4246,6 @@ function renderDynamischSim() {
     </div>`;
   }
 
-  grid2026.innerHTML = cells2026.map(c => renderTegel(c, beste2026)).join('');
   grid2027.innerHTML = cells2027.map(c => renderTegel(c, beste2027)).join('');
 
   // Context-uitleg bovenaan
