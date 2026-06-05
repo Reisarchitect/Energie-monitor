@@ -4211,8 +4211,10 @@ function renderDynamischSim() {
       if (inkoop < 0) inkoop = 0;
       // Arbitrage alleen bij dynamisch contract
       if (dynamisch) {
-        // Per cyclus: spread × efficiëntie
-        arbitrage = jaarOpgeslagen * dynSpread * dynArbEff;
+        // Realistische arbitrage = halve piek-dal spread × efficiëntie
+        // (omdat gemiddeld tarief al verwerkt is in inkoopbesparing)
+        // Bv: spread €0,20 → extra €0,075/kWh bij 75% eff
+        arbitrage = jaarOpgeslagen * (dynSpread / 2) * dynArbEff;
       }
     }
     const kostenInkoop = inkoop * inkoopT;
