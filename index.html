@@ -1620,6 +1620,29 @@
         </div>
       </div>
 
+      <!-- DYNAMISCH CONTRACT SIMULATOR -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-block">
+            <div class="card-eyebrow">Contractkeuze</div>
+            <div class="card-title">⚡ Dynamisch vs. vast contract — met/zonder batterij</div>
+            <div class="card-sub">Vergelijking jouw huidige vaste tarieven vs. ANWB dynamisch (default). Pas tarieven aan om eigen contract te modelleren.</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:14px 0 18px;">
+          <div class="field"><label>Dyn. inkoop avg (€/kWh)</label><input type="number" id="dynInkoop" step="0.0001" value="0.21121" oninput="renderDynamischSim()"></div>
+          <div class="field"><label>Dyn. terug 2026 (€/kWh, met saldering)</label><input type="number" id="dynTerug2026" step="0.0001" value="0.16488" oninput="renderDynamischSim()"></div>
+          <div class="field"><label>Dyn. terug 2027+ (€/kWh, alleen EPEX)</label><input type="number" id="dynTerug2027" step="0.0001" value="0.05" oninput="renderDynamischSim()"></div>
+          <div class="field"><label>Vaste kosten/jaar dyn. (€)</label><input type="number" id="dynVast" step="1" value="-51" oninput="renderDynamischSim()"></div>
+          <div class="field"><label>EPEX piek-dal spread (€/kWh)</label><input type="number" id="dynSpread" step="0.01" value="0.20" oninput="renderDynamischSim()"></div>
+          <div class="field"><label>Arbitrage-efficiëntie (%)</label><input type="number" id="dynArbEff" step="1" value="75" oninput="renderDynamischSim()"></div>
+        </div>
+        <div id="dynamischSimGrid"></div>
+        <div style="margin-top:14px;padding:12px 16px;background:rgba(127,163,125,0.06);border:1px solid var(--line-gold);border-radius:10px;font-size:11px;color:var(--slate);font-family:var(--font-mono);line-height:1.7;">
+          <strong style="color:var(--gold);">Aannames:</strong> verbruik en teruglevering geëxtrapoleerd via PVGIS-seizoenscorrectie op jouw meetdata. Arbitrage = batterij vullen tijdens daluren/zonneoverschot, ontladen tijdens avondpiek. EPEX-spread van €0,20/kWh is conservatief gemiddelde NL 2025-2026. Voor exacte arbitrage zou ik EPEX-historische uurprijzen moeten inlezen — dit is een snelle schatting.
+        </div>
+      </div>
+
       <!-- 4 Pylontech capaciteiten -->
       <div class="card">
         <div class="card-header">
@@ -2842,7 +2865,7 @@ function switchTab(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
   if (name === 'dashboard') renderDashboard();
-  if (name === 'batterij') renderBatterij();
+  if (name === 'batterij') { renderBatterij(); renderDynamischSim(); }
   if (name === 'maand') populateMaandSelect();
   if (name === 'opbrengst') renderOpbrengst();
   if (name === 'prognose') renderPrognose();
@@ -3840,15 +3863,39 @@ function renderBatterij() {
       const jaarBesparing2027 = jaarOpgeslagen * INKOOP_TARIEF;
       const jaren = prijs > 0 && jaarBesparingNu > 0 ? (prijs / jaarBesparingNu) : 0;
       const jaren2027 = prijs > 0 && jaarBesparing2027 > 0 ? (prijs / jaarBesparing2027) : 0;
+
+      // GEMENGDE TVT: rekent met saldering tot 01-01-2027, daarna zonder
+      // Rekent vanaf vandaag (of installdatum batterij = vandaag aanname)
+      let jarenGemengd = 0;
+      if (prijs > 0 && jaarBesparing2027 > 0) {
+        const vandaag = new Date();
+        const cutoff = new Date(CUTOFF_SALDERING);
+        const msPerJaar = 365.25 * 86400000;
+        const jarenInSaldering = Math.max(0, (cutoff - vandaag) / msPerJaar);
+        const besparingTotCutoff = jarenInSaldering * jaarBesparingNu;
+        if (prijs <= besparingTotCutoff && jaarBesparingNu > 0) {
+          // Terugverdiend vóór saldering vervalt
+          jarenGemengd = prijs / jaarBesparingNu;
+        } else {
+          // Eerst besparing tot cutoff, daarna rest aan post-2027 tempo
+          const restPrijs = prijs - besparingTotCutoff;
+          jarenGemengd = jarenInSaldering + (restPrijs / jaarBesparing2027);
+        }
+      }
+
       return `<div style="padding:14px 16px;background:rgba(36,56,96,0.4);border:1px solid rgba(201,168,76,0.15);border-radius:10px;">
         <div style="font-size:11px;color:var(--slate);font-family:var(--font-mono);margin-bottom:6px;">${bat.merk || 'Pylontech Force H3'} ${bat.label} kWh</div>
+        <div style="font-size:11px;color:var(--c-green);margin-bottom:2px;font-weight:600;">★ Realistische TVT (gemengd)</div>
+        <div style="font-size:24px;font-weight:700;color:var(--c-green);">${jarenGemengd > 0 ? jarenGemengd.toFixed(1) + ' jaar' : '—'}</div>
+        <div style="font-size:10px;color:var(--slate);margin-top:2px;line-height:1.4;">Rekent ${jaarBesparing2027 > 0 ? `met saldering t/m 31-12-2026 (€${fmt(jaarBesparingNu,0)}/jr), zonder vanaf 2027 (€${fmt(jaarBesparing2027,0)}/jr)` : ''}</div>
+        <div style="border-top:1px solid rgba(255,255,255,0.08);margin:10px 0;"></div>
         <div style="font-size:11px;color:var(--slate);margin-bottom:2px;">Terugverdientijd nu (vóór 2027)</div>
-        <div style="font-size:22px;font-weight:700;color:var(--gold);">${jaren > 0 ? jaren.toFixed(1) + ' jaar' : '—'}</div>
-        <div style="font-size:11px;color:var(--ivory);margin-top:2px;">~€${fmt(jaarBesparingNu,0)}/jaar besparing (€${(INKOOP_TARIEF-SALDERING_TARIEF).toFixed(3)}/kWh netto)</div>
+        <div style="font-size:18px;font-weight:700;color:var(--gold);">${jaren > 0 ? jaren.toFixed(1) + ' jaar' : '—'}</div>
+        <div style="font-size:11px;color:var(--ivory);margin-top:2px;">~€${fmt(jaarBesparingNu,0)}/jaar (€${(INKOOP_TARIEF-SALDERING_TARIEF).toFixed(3)}/kWh netto)</div>
         <div style="border-top:1px solid rgba(255,255,255,0.08);margin:10px 0;"></div>
         <div style="font-size:11px;color:var(--slate);margin-bottom:2px;">Terugverdientijd vanaf 01-01-2027</div>
         <div style="font-size:18px;font-weight:700;color:#B8755C;">${jaren2027 > 0 ? jaren2027.toFixed(1) + ' jaar' : '—'}</div>
-        <div style="font-size:11px;color:var(--ivory);margin-top:2px;">~€${fmt(jaarBesparing2027,0)}/jaar besparing (€${INKOOP_TARIEF.toFixed(3)}/kWh)</div>
+        <div style="font-size:11px;color:var(--ivory);margin-top:2px;">~€${fmt(jaarBesparing2027,0)}/jaar (€${INKOOP_TARIEF.toFixed(3)}/kWh)</div>
         ${prijs === 0 ? '<div style="font-size:10px;color:var(--slate);margin-top:8px;">↑ Vul aanschafprijs in voor terugverdientijd</div>' : ''}
       </div>`;
     }).join('');
@@ -4045,6 +4092,134 @@ function renderPrognose() {
     </div>`;
   }
   advEl.innerHTML = advTekst + `<br><br><span style="font-size:11px;color:var(--slate);">Extrapolatie is gebaseerd op ${d.length} beschikbare meetdagen met seizoenscorrectie via PVGIS-jaarverdeling.</span>` + waarschuwingP;
+}
+
+// ─── DYNAMISCH CONTRACT SIMULATOR ─────────────────────────────
+function renderDynamischSim() {
+  const MT = getMaandTarget();
+  const d = data.filter(r => r.opwek > 0);
+  const targetEl = document.getElementById('dynamischSimGrid');
+  if (!targetEl || !d.length) return;
+
+  // Inputs
+  const dynInkoop = parseFloat(document.getElementById('dynInkoop')?.value) || 0.21121;
+  const dynTerug2026 = parseFloat(document.getElementById('dynTerug2026')?.value) || 0.16488;
+  const dynTerug2027 = parseFloat(document.getElementById('dynTerug2027')?.value) || 0.05;
+  const dynVast = parseFloat(document.getElementById('dynVast')?.value) || -51;
+  const dynSpread = parseFloat(document.getElementById('dynSpread')?.value) || 0.20;
+  const dynArbEff = (parseFloat(document.getElementById('dynArbEff')?.value) || 75) / 100;
+
+  // Seizoenscorrectie - extrapoleer jouw verbruik/teruglevering naar volledig jaar
+  const totaalJaarPVGIS = Object.values(MT).reduce((a,b)=>a+b,0);
+  const maandDagenSim = {};
+  d.forEach(r => {
+    const mn = r.datum.slice(5,7);
+    maandDagenSim[mn] = (maandDagenSim[mn] || 0) + 1;
+  });
+  let gewogenJaarFractie = 0;
+  Object.entries(maandDagenSim).forEach(([mn, n]) => {
+    const dim = new Date(2026, parseInt(mn), 0).getDate();
+    gewogenJaarFractie += (n/dim) * (MT[mn]/totaalJaarPVGIS);
+  });
+
+  const totalUitNet = d.reduce((s,r)=>s+r.uit_net, 0);
+  const totalTerug = d.reduce((s,r)=>s+r.teruggeleverd, 0);
+  const jaarVerbruikInkoop = gewogenJaarFractie > 0 ? totalUitNet / gewogenJaarFractie : totalUitNet * 365/d.length;
+  const jaarTeruglevering = gewogenJaarFractie > 0 ? totalTerug / gewogenJaarFractie : totalTerug * 365/d.length;
+
+  // Batterij effectief
+  const bat = (getBatterijConfig() || PYLONTECH[2]); // default 20.2 kWh
+  const eff = bat.effectief;
+  // Hoeveel kan batterij opslaan? min(teruggeleverd, uit_net, eff)
+  const nettoLaadArr = d.map(r => Math.min(r.teruggeleverd, r.uit_net, eff));
+  const jaarOpgeslagen = gewogenJaarFractie > 0
+    ? (nettoLaadArr.reduce((s,v)=>s+v,0)) / gewogenJaarFractie
+    : (nettoLaadArr.reduce((s,v)=>s+v,0)) * 365/d.length;
+
+  // VASTE TARIEVEN (uit constanten)
+  const vastInkoop = INKOOP_TARIEF;
+  const vastTerug2026 = SALDERING_TARIEF;
+  const vastTerug2027 = 0;
+  const vastVast = 0; // hardcoded niet bekend, neem 0 als baseline
+
+  // ── 4 scenario's ──
+  // Voor elk: kosten = jaarVerbruik × inkooptarief - jaarTerug × terugtarief + vaste kosten
+  // Met batterij: jaarTerug effectief lager (jaarOpgeslagen wordt zelfverbruikt ipv teruggeleverd)
+  //              en jaarVerbruikInkoop óók lager (batterij vervangt netafname)
+
+  function scenario(inkoopT, terugT, vasteK, metBatterij, dynamisch, isPost2027) {
+    let inkoop = jaarVerbruikInkoop;
+    let terug = jaarTeruglevering;
+    let arbitrage = 0;
+    if (metBatterij) {
+      inkoop -= jaarOpgeslagen; // batterij vervangt netafname
+      terug -= jaarOpgeslagen;  // wat opgeslagen is, gaat niet meer terug
+      if (terug < 0) terug = 0;
+      if (inkoop < 0) inkoop = 0;
+      // Arbitrage alleen bij dynamisch contract
+      if (dynamisch) {
+        // Per cyclus: spread × efficiëntie
+        arbitrage = jaarOpgeslagen * dynSpread * dynArbEff;
+      }
+    }
+    const kostenInkoop = inkoop * inkoopT;
+    const opbrengstTerug = terug * terugT;
+    const totaal = kostenInkoop - opbrengstTerug - arbitrage + vasteK;
+    return { totaal, kostenInkoop, opbrengstTerug, arbitrage, inkoop, terug, vasteK };
+  }
+
+  const cells = [
+    { naam: 'Vast 2026 zonder batterij',  res: scenario(vastInkoop, vastTerug2026, vastVast, false, false, false) },
+    { naam: 'Vast 2026 met batterij',     res: scenario(vastInkoop, vastTerug2026, vastVast, true,  false, false) },
+    { naam: 'Vast 2027+ zonder batterij', res: scenario(vastInkoop, vastTerug2027, vastVast, false, false, true ) },
+    { naam: 'Vast 2027+ met batterij',    res: scenario(vastInkoop, vastTerug2027, vastVast, true,  false, true ) },
+    { naam: 'Dyn 2026 zonder batterij',   res: scenario(dynInkoop,  dynTerug2026, dynVast,   false, true,  false) },
+    { naam: 'Dyn 2026 met batterij',      res: scenario(dynInkoop,  dynTerug2026, dynVast,   true,  true,  false) },
+    { naam: 'Dyn 2027+ zonder batterij',  res: scenario(dynInkoop,  dynTerug2027, dynVast,   false, true,  true ) },
+    { naam: 'Dyn 2027+ met batterij',     res: scenario(dynInkoop,  dynTerug2027, dynVast,   true,  true,  true ) },
+  ];
+
+  // Bouw tabel
+  const baseline = cells[0].res.totaal; // vast 2026 zonder batterij = referentie
+  function fmtVerschil(t) {
+    const v = baseline - t;
+    const kleur = v > 0 ? 'var(--c-green)' : '#B8755C';
+    return `<span style="color:${kleur};font-weight:600;">${v > 0 ? '−' : '+'}€${fmt(Math.abs(v),0)}/jr</span>`;
+  }
+
+  targetEl.innerHTML = `
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--line-gold);color:var(--gold);font-family:var(--font-mono);text-transform:uppercase;font-size:10px;">
+            <th style="padding:10px 8px;text-align:left;">Scenario</th>
+            <th style="padding:10px 8px;text-align:right;">Netto inkoop/jr</th>
+            <th style="padding:10px 8px;text-align:right;">Terug-opbr/jr</th>
+            <th style="padding:10px 8px;text-align:right;">Arbitrage</th>
+            <th style="padding:10px 8px;text-align:right;">Vaste kosten</th>
+            <th style="padding:10px 8px;text-align:right;">TOTAAL/jr</th>
+            <th style="padding:10px 8px;text-align:right;">vs. baseline</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${cells.map((c,i) => `
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.05);${i===0 ? 'background:rgba(201,168,76,0.04);' : ''}${c.naam.includes('Dyn') && c.naam.includes('met batterij') ? 'background:rgba(127,163,125,0.06);' : ''}">
+              <td style="padding:9px 8px;color:var(--ivory);">${c.naam}${i===0 ? ' <span style="color:var(--slate);font-size:10px;">(baseline)</span>' : ''}</td>
+              <td style="padding:9px 8px;text-align:right;color:var(--ivory);font-family:var(--font-mono);">€${fmt(c.res.kostenInkoop,0)}</td>
+              <td style="padding:9px 8px;text-align:right;color:var(--slate);font-family:var(--font-mono);">−€${fmt(c.res.opbrengstTerug,0)}</td>
+              <td style="padding:9px 8px;text-align:right;color:${c.res.arbitrage > 0 ? 'var(--c-green)' : 'var(--slate)'};font-family:var(--font-mono);">${c.res.arbitrage > 0 ? '−€'+fmt(c.res.arbitrage,0) : '—'}</td>
+              <td style="padding:9px 8px;text-align:right;color:var(--slate);font-family:var(--font-mono);">${c.res.vasteK < 0 ? '−' : ''}€${fmt(Math.abs(c.res.vasteK),0)}</td>
+              <td style="padding:9px 8px;text-align:right;color:var(--gold);font-family:var(--font-mono);font-weight:700;">€${fmt(c.res.totaal,0)}</td>
+              <td style="padding:9px 8px;text-align:right;">${i===0 ? '—' : fmtVerschil(c.res.totaal)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:12px;font-size:11px;color:var(--slate);font-family:var(--font-mono);line-height:1.6;">
+      Berekend op ${d.length} meetdagen (${(gewogenJaarFractie*100).toFixed(1)}% van jaarproductie gedekt). Jaarverbruik ${fmt(jaarVerbruikInkoop,0)} kWh · jaarteruglevering ${fmt(jaarTeruglevering,0)} kWh · batterij effectief ${fmt(eff,1)} kWh.
+    </div>
+  `;
 }
 
 // ─── BACKFILL VOORSPELLINGEN (post-hoc, voor periodes >7 dagen weg) ───
