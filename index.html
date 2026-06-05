@@ -1625,21 +1625,34 @@
         <div class="card-header">
           <div class="card-title-block">
             <div class="card-eyebrow">Contractkeuze</div>
-            <div class="card-title">⚡ Dynamisch vs. vast contract — met/zonder batterij</div>
-            <div class="card-sub">Vergelijking jouw huidige vaste tarieven vs. ANWB dynamisch (default). Pas tarieven aan om eigen contract te modelleren.</div>
+            <div class="card-title">⚡ Dynamisch (ANWB) vs. vast contract</div>
+            <div class="card-sub">Welke combinatie van contract + batterij is voor jou het voordeligst? Standaardwaarden komen uit jouw ANWB-screenshots.</div>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:14px 0 18px;">
-          <div class="field"><label>Dyn. inkoop avg (€/kWh)</label><input type="number" id="dynInkoop" step="0.0001" value="0.21121" oninput="renderDynamischSim()"></div>
-          <div class="field"><label>Dyn. terug 2026 (€/kWh, met saldering)</label><input type="number" id="dynTerug2026" step="0.0001" value="0.16488" oninput="renderDynamischSim()"></div>
-          <div class="field"><label>Dyn. terug 2027+ (€/kWh, alleen EPEX)</label><input type="number" id="dynTerug2027" step="0.0001" value="0.05" oninput="renderDynamischSim()"></div>
-          <div class="field"><label>Vaste kosten/jaar dyn. (€)</label><input type="number" id="dynVast" step="1" value="-51" oninput="renderDynamischSim()"></div>
-          <div class="field"><label>EPEX piek-dal spread (€/kWh)</label><input type="number" id="dynSpread" step="0.01" value="0.20" oninput="renderDynamischSim()"></div>
-          <div class="field"><label>Arbitrage-efficiëntie (%)</label><input type="number" id="dynArbEff" step="1" value="75" oninput="renderDynamischSim()"></div>
-        </div>
-        <div id="dynamischSimGrid"></div>
-        <div style="margin-top:14px;padding:12px 16px;background:rgba(127,163,125,0.06);border:1px solid var(--line-gold);border-radius:10px;font-size:11px;color:var(--slate);font-family:var(--font-mono);line-height:1.7;">
-          <strong style="color:var(--gold);">Aannames:</strong> verbruik en teruglevering geëxtrapoleerd via PVGIS-seizoenscorrectie op jouw meetdata. Arbitrage = batterij vullen tijdens daluren/zonneoverschot, ontladen tijdens avondpiek. EPEX-spread van €0,20/kWh is conservatief gemiddelde NL 2025-2026. Voor exacte arbitrage zou ik EPEX-historische uurprijzen moeten inlezen — dit is een snelle schatting.
+
+        <details style="margin:12px 0 18px;background:rgba(36,56,96,0.3);border:1px solid var(--line-gold);border-radius:10px;padding:12px 16px;">
+          <summary style="cursor:pointer;color:var(--gold);font-size:12px;font-family:var(--font-mono);">▸ Tarieven aanpassen (ANWB-defaults, klik om te wijzigen)</summary>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px;">
+            <div class="field"><label>Dyn. inkoopprijs (€/kWh)</label><input type="number" id="dynInkoop" step="0.0001" value="0.21121" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Dyn. terug 2026 met saldering (€/kWh)</label><input type="number" id="dynTerug2026" step="0.0001" value="0.16488" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Dyn. terug 2027+ alleen EPEX (€/kWh)</label><input type="number" id="dynTerug2027" step="0.0001" value="0.05" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Vaste kosten dyn./jr (€)</label><input type="number" id="dynVast" step="1" value="-51" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>EPEX piek-dal spread (€/kWh)</label><input type="number" id="dynSpread" step="0.01" value="0.20" oninput="renderDynamischSim()"></div>
+            <div class="field"><label>Arbitrage-efficiëntie (%)</label><input type="number" id="dynArbEff" step="1" value="75" oninput="renderDynamischSim()"></div>
+          </div>
+        </details>
+
+        <div id="dynamischSimContext" style="margin-bottom:14px;font-size:12px;color:var(--ivory);line-height:1.6;"></div>
+
+        <h4 style="color:var(--gold);font-family:var(--font-mono);font-size:11px;text-transform:uppercase;margin:18px 0 10px;letter-spacing:0.5px;">📅 Vandaag (saldering nog actief in 2026)</h4>
+        <div id="dynamischSimGrid2026" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;"></div>
+
+        <h4 style="color:#B8755C;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;margin:24px 0 10px;letter-spacing:0.5px;">📅 Vanaf 01-01-2027 (saldering vervalt)</h4>
+        <div id="dynamischSimGrid2027" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;"></div>
+
+        <div style="margin-top:18px;padding:14px 18px;background:rgba(201,168,76,0.06);border:1px solid var(--line-gold);border-radius:10px;font-size:12px;color:var(--ivory);line-height:1.7;">
+          <strong style="color:var(--gold);">Hoe lees je dit?</strong> Elke tegel toont je geschatte maandbedrag voor stroom (inkoop − teruglevering − arbitragewinst + vaste kosten). De groene tegel is steeds de gunstigste optie. Het verschil onderaan is de besparing per jaar t.o.v. je huidige situatie.<br><br>
+          <strong style="color:var(--gold);">Wat is arbitrage?</strong> Met een dynamisch contract varieert de stroomprijs per uur. Je batterij vult zich tijdens goedkope uren (nachts of zonnige middag) en ontlaadt tijdens dure avondspits. De winst per opgeslagen kWh = ongeveer €0,20 × 75% efficiëntie = €0,15/kWh. Vereist actieve sturing (HomeWizard EMS, EVCC, etc.).
         </div>
       </div>
 
@@ -4098,8 +4111,10 @@ function renderPrognose() {
 function renderDynamischSim() {
   const MT = getMaandTarget();
   const d = data.filter(r => r.opwek > 0);
-  const targetEl = document.getElementById('dynamischSimGrid');
-  if (!targetEl || !d.length) return;
+  const grid2026 = document.getElementById('dynamischSimGrid2026');
+  const grid2027 = document.getElementById('dynamischSimGrid2027');
+  const ctxEl = document.getElementById('dynamischSimContext');
+  if (!grid2026 || !grid2027 || !d.length) return;
 
   // Inputs
   const dynInkoop = parseFloat(document.getElementById('dynInkoop')?.value) || 0.21121;
@@ -4168,58 +4183,71 @@ function renderDynamischSim() {
     return { totaal, kostenInkoop, opbrengstTerug, arbitrage, inkoop, terug, vasteK };
   }
 
-  const cells = [
-    { naam: 'Vast 2026 zonder batterij',  res: scenario(vastInkoop, vastTerug2026, vastVast, false, false, false) },
-    { naam: 'Vast 2026 met batterij',     res: scenario(vastInkoop, vastTerug2026, vastVast, true,  false, false) },
-    { naam: 'Vast 2027+ zonder batterij', res: scenario(vastInkoop, vastTerug2027, vastVast, false, false, true ) },
-    { naam: 'Vast 2027+ met batterij',    res: scenario(vastInkoop, vastTerug2027, vastVast, true,  false, true ) },
-    { naam: 'Dyn 2026 zonder batterij',   res: scenario(dynInkoop,  dynTerug2026, dynVast,   false, true,  false) },
-    { naam: 'Dyn 2026 met batterij',      res: scenario(dynInkoop,  dynTerug2026, dynVast,   true,  true,  false) },
-    { naam: 'Dyn 2027+ zonder batterij',  res: scenario(dynInkoop,  dynTerug2027, dynVast,   false, true,  true ) },
-    { naam: 'Dyn 2027+ met batterij',     res: scenario(dynInkoop,  dynTerug2027, dynVast,   true,  true,  true ) },
+  // Scenario's per jaar
+  const cells2026 = [
+    { naam: 'Huidig vast', sub: 'zonder batterij',  res: scenario(vastInkoop, vastTerug2026, vastVast, false, false, false), kleur: 'gold' },
+    { naam: 'Huidig vast', sub: 'met batterij',     res: scenario(vastInkoop, vastTerug2026, vastVast, true,  false, false), kleur: 'gold' },
+    { naam: 'ANWB dyn.',   sub: 'zonder batterij',  res: scenario(dynInkoop,  dynTerug2026, dynVast,   false, true,  false), kleur: 'teal' },
+    { naam: 'ANWB dyn.',   sub: 'met batterij',     res: scenario(dynInkoop,  dynTerug2026, dynVast,   true,  true,  false), kleur: 'green' },
+  ];
+  const cells2027 = [
+    { naam: 'Huidig vast', sub: 'zonder batterij',  res: scenario(vastInkoop, vastTerug2027, vastVast, false, false, true), kleur: 'red' },
+    { naam: 'Huidig vast', sub: 'met batterij',     res: scenario(vastInkoop, vastTerug2027, vastVast, true,  false, true), kleur: 'gold' },
+    { naam: 'ANWB dyn.',   sub: 'zonder batterij',  res: scenario(dynInkoop,  dynTerug2027, dynVast,   false, true,  true), kleur: 'teal' },
+    { naam: 'ANWB dyn.',   sub: 'met batterij',     res: scenario(dynInkoop,  dynTerug2027, dynVast,   true,  true,  true), kleur: 'green' },
   ];
 
-  // Bouw tabel
-  const baseline = cells[0].res.totaal; // vast 2026 zonder batterij = referentie
-  function fmtVerschil(t) {
-    const v = baseline - t;
-    const kleur = v > 0 ? 'var(--c-green)' : '#B8755C';
-    return `<span style="color:${kleur};font-weight:600;">${v > 0 ? '−' : '+'}€${fmt(Math.abs(v),0)}/jr</span>`;
+  // Baseline = huidige situatie (vast 2026 zonder batterij)
+  const baseline = cells2026[0].res.totaal;
+
+  // Bepaal beste optie per jaar (laagste totaal) voor visuele markering
+  const beste2026 = cells2026.reduce((min, c) => c.res.totaal < min.res.totaal ? c : min, cells2026[0]);
+  const beste2027 = cells2027.reduce((min, c) => c.res.totaal < min.res.totaal ? c : min, cells2027[0]);
+
+  function renderTegel(c, beste) {
+    const maand = c.res.totaal / 12;
+    const verschilJr = baseline - c.res.totaal;
+    const verschilKleur = verschilJr > 0 ? 'var(--c-green)' : verschilJr < -50 ? '#B8755C' : 'var(--slate)';
+    const verschilTekst = verschilJr === 0 ? '(jouw huidige situatie)'
+      : verschilJr > 0 ? `bespaart €${fmt(verschilJr,0)}/jaar`
+      : `kost €${fmt(Math.abs(verschilJr),0)}/jaar meer`;
+    const isBeste = c === beste;
+    const border = isBeste ? '2px solid var(--c-green)' : '1px solid rgba(201,168,76,0.15)';
+    const bg = isBeste ? 'rgba(127,163,125,0.10)' : 'rgba(36,56,96,0.4)';
+    const eyebrowKleur = c.kleur === 'green' ? 'var(--c-green)' : c.kleur === 'red' ? '#B8755C' : c.kleur === 'teal' ? '#6FA7A8' : 'var(--gold)';
+    return `<div style="padding:16px 18px;background:${bg};border:${border};border-radius:12px;position:relative;">
+      ${isBeste ? '<div style="position:absolute;top:-10px;right:12px;background:var(--c-green);color:#0a1525;font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;font-family:var(--font-mono);">★ BESTE</div>' : ''}
+      <div style="font-size:10px;color:${eyebrowKleur};font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">${c.naam}</div>
+      <div style="font-size:13px;color:var(--ivory);margin-bottom:12px;">${c.sub}</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px;">
+        <span style="font-size:28px;font-weight:700;color:var(--gold);font-family:var(--font-mono);">€${fmt(maand,0)}</span>
+        <span style="font-size:12px;color:var(--slate);">/ maand</span>
+      </div>
+      <div style="font-size:11px;color:var(--slate);font-family:var(--font-mono);margin-bottom:10px;">€${fmt(c.res.totaal,0)}/jaar totaal</div>
+      <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:10px;font-size:11px;color:${verschilKleur};font-weight:600;line-height:1.4;">
+        ${verschilTekst}
+      </div>
+      <div style="margin-top:10px;font-size:10px;color:var(--slate);font-family:var(--font-mono);line-height:1.6;">
+        Inkoop: €${fmt(c.res.kostenInkoop,0)}/jr<br>
+        Terug-credit: −€${fmt(c.res.opbrengstTerug,0)}/jr<br>
+        ${c.res.arbitrage > 0 ? `Arbitragewinst: −€${fmt(c.res.arbitrage,0)}/jr<br>` : ''}
+        Vaste kosten: ${c.res.vasteK < 0 ? '−' : ''}€${fmt(Math.abs(c.res.vasteK),0)}/jr
+      </div>
+    </div>`;
   }
 
-  targetEl.innerHTML = `
-    <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:12px;">
-        <thead>
-          <tr style="border-bottom:1px solid var(--line-gold);color:var(--gold);font-family:var(--font-mono);text-transform:uppercase;font-size:10px;">
-            <th style="padding:10px 8px;text-align:left;">Scenario</th>
-            <th style="padding:10px 8px;text-align:right;">Netto inkoop/jr</th>
-            <th style="padding:10px 8px;text-align:right;">Terug-opbr/jr</th>
-            <th style="padding:10px 8px;text-align:right;">Arbitrage</th>
-            <th style="padding:10px 8px;text-align:right;">Vaste kosten</th>
-            <th style="padding:10px 8px;text-align:right;">TOTAAL/jr</th>
-            <th style="padding:10px 8px;text-align:right;">vs. baseline</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${cells.map((c,i) => `
-            <tr style="border-bottom:1px solid rgba(255,255,255,0.05);${i===0 ? 'background:rgba(201,168,76,0.04);' : ''}${c.naam.includes('Dyn') && c.naam.includes('met batterij') ? 'background:rgba(127,163,125,0.06);' : ''}">
-              <td style="padding:9px 8px;color:var(--ivory);">${c.naam}${i===0 ? ' <span style="color:var(--slate);font-size:10px;">(baseline)</span>' : ''}</td>
-              <td style="padding:9px 8px;text-align:right;color:var(--ivory);font-family:var(--font-mono);">€${fmt(c.res.kostenInkoop,0)}</td>
-              <td style="padding:9px 8px;text-align:right;color:var(--slate);font-family:var(--font-mono);">−€${fmt(c.res.opbrengstTerug,0)}</td>
-              <td style="padding:9px 8px;text-align:right;color:${c.res.arbitrage > 0 ? 'var(--c-green)' : 'var(--slate)'};font-family:var(--font-mono);">${c.res.arbitrage > 0 ? '−€'+fmt(c.res.arbitrage,0) : '—'}</td>
-              <td style="padding:9px 8px;text-align:right;color:var(--slate);font-family:var(--font-mono);">${c.res.vasteK < 0 ? '−' : ''}€${fmt(Math.abs(c.res.vasteK),0)}</td>
-              <td style="padding:9px 8px;text-align:right;color:var(--gold);font-family:var(--font-mono);font-weight:700;">€${fmt(c.res.totaal,0)}</td>
-              <td style="padding:9px 8px;text-align:right;">${i===0 ? '—' : fmtVerschil(c.res.totaal)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-    <div style="margin-top:12px;font-size:11px;color:var(--slate);font-family:var(--font-mono);line-height:1.6;">
-      Berekend op ${d.length} meetdagen (${(gewogenJaarFractie*100).toFixed(1)}% van jaarproductie gedekt). Jaarverbruik ${fmt(jaarVerbruikInkoop,0)} kWh · jaarteruglevering ${fmt(jaarTeruglevering,0)} kWh · batterij effectief ${fmt(eff,1)} kWh.
-    </div>
-  `;
+  grid2026.innerHTML = cells2026.map(c => renderTegel(c, beste2026)).join('');
+  grid2027.innerHTML = cells2027.map(c => renderTegel(c, beste2027)).join('');
+
+  // Context-uitleg bovenaan
+  if (ctxEl) {
+    ctxEl.innerHTML = `
+      <strong style="color:var(--gold);">Op basis van jouw ${d.length} meetdagen</strong> (${(gewogenJaarFractie*100).toFixed(1)}% van jaarproductie gedekt via PVGIS-correctie):<br>
+      Geschat jaarverbruik uit het net: <strong>${fmt(jaarVerbruikInkoop,0)} kWh</strong> ·
+      teruglevering naar net: <strong>${fmt(jaarTeruglevering,0)} kWh</strong> ·
+      batterij ${bat.label || bat.capaciteit} kWh (${fmt(eff,1)} kWh effectief) slaat ~<strong>${fmt(jaarOpgeslagen,0)} kWh/jaar</strong> op.
+    `;
+  }
 }
 
 // ─── BACKFILL VOORSPELLINGEN (post-hoc, voor periodes >7 dagen weg) ───
