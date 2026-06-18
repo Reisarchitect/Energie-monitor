@@ -3200,15 +3200,20 @@ function renderDashboardWidgets() {
     <div class="kpi gold"><div class="kpi-val">${fmtE(ytdKosten)}</div><div class="kpi-unit">totale kosten</div><div class="kpi-label">${ytdDagen} dagen</div></div>`;
 
   // ── 3. BATTERIJ-BESPARING TOT NU TOE ──
-  // Pylontech 15.4 kWh referentie: effectief 13.2 kWh
-  const BAT_EFF = 13.2;
+  // Gebruik actieve batterij-config (eigen batterij of Pylontech 15.4 als default)
+  const batCfg_dash = getBatterijConfig();
+  const BAT_EFF = batCfg_dash ? batCfg_dash.effectief : 13.2;
+  const BAT_LABEL = batCfg_dash ? `${batCfg_dash.merk || 'Eigen batterij'} ${batCfg_dash.label} kWh` : 'Pylontech 15.4 kWh referentie';
   const dagenMetOpwek = data.filter(r => r.opwek > 0);
   let totaalBespaard = 0;
+  let totaalBespaardPost2027 = 0; // zelfde data, maar gerekend met tarief vanaf 2027
   dagenMetOpwek.forEach(r => {
     const opslagPotentieel = Math.min(r.teruggeleverd, r.uit_net, BAT_EFF);
     const cutoff = r.datum >= '2027-01-01';
     const winstPerKwh = cutoff ? 0.25912 : (0.25912 - 0.13230);
     totaalBespaard += opslagPotentieel * winstPerKwh;
+    // Post-2027 scenario: zelfde data, maar volledige inkoopprijs als winst
+    totaalBespaardPost2027 += opslagPotentieel * 0.25912;
   });
   const investering = parseFloat(document.getElementById('b-prijs')?.value) || 6600;
   const procentTerugverdiend = investering > 0 ? (totaalBespaard / investering * 100) : 0;
@@ -3232,9 +3237,14 @@ function renderDashboardWidgets() {
   document.getElementById('battSavedContent').innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;">
       <div style="padding:14px 18px;background:rgba(127,163,125,0.08);border:1px solid var(--c-green);border-radius:10px;">
-        <div style="font-size:11px;color:var(--slate);font-family:var(--font-mono);text-transform:uppercase;margin-bottom:4px;">Bespaard tot nu</div>
+        <div style="font-size:11px;color:var(--slate);font-family:var(--font-mono);text-transform:uppercase;margin-bottom:4px;">Bespaard tot nu (2026)</div>
         <div style="font-size:28px;font-weight:700;color:var(--c-green);font-family:var(--font-mono);">${fmtE(totaalBespaard)}</div>
-        <div style="font-size:11px;color:var(--ivory);margin-top:4px;">In ${dagenMetOpwek.length} meetdagen</div>
+        <div style="font-size:11px;color:var(--ivory);margin-top:4px;">Met saldering (€0,127/kWh netto)</div>
+      </div>
+      <div style="padding:14px 18px;background:rgba(184,117,92,0.08);border:1px solid #B8755C;border-radius:10px;">
+        <div style="font-size:11px;color:#B8755C;font-family:var(--font-mono);text-transform:uppercase;margin-bottom:4px;font-weight:600;">Zelfde verbruik vanaf 2027</div>
+        <div style="font-size:28px;font-weight:700;color:#B8755C;font-family:var(--font-mono);">${fmtE(totaalBespaardPost2027)}</div>
+        <div style="font-size:11px;color:var(--ivory);margin-top:4px;">Zonder saldering (€0,259/kWh) → ~2× hoger</div>
       </div>
       <div style="padding:14px 18px;background:rgba(36,56,96,0.4);border:1px solid rgba(201,168,76,0.2);border-radius:10px;">
         <div style="font-size:11px;color:var(--slate);font-family:var(--font-mono);text-transform:uppercase;margin-bottom:4px;">Jaarprojectie (PVGIS-correctie)</div>
@@ -3248,8 +3258,9 @@ function renderDashboardWidgets() {
       </div>
     </div>
     <div style="margin-top:12px;font-size:11px;color:var(--slate);font-family:var(--font-mono);line-height:1.6;">
-      ℹ️ Pylontech 15.4 kWh referentie. Berekend op min(teruggeleverd, uit_net, batterij-capaciteit) × winst per kWh.
-      Vóór 2027: €${(0.25912 - 0.13230).toFixed(3)}/kWh. Vanaf 2027: €0.25912/kWh.
+      ℹ️ <strong>${BAT_LABEL}</strong> (${fmt(BAT_EFF,1)} kWh effectief). Berekend op min(teruggeleverd, uit_net, batterij-capaciteit) × winst per kWh.<br>
+      <strong>Tot 31-12-2026 (saldering actief):</strong> netto winst per opgeslagen kWh = €${(0.25912 - 0.13230).toFixed(3)} (= inkoop €0,259 − saldering-credit €0,132 die je sowieso zou krijgen).<br>
+      <strong>Vanaf 01-01-2027 (saldering vervalt):</strong> winst = €0,259/kWh (volle inkoopprijs). De rode tegel laat zien wat dezelfde meetperiode dan zou hebben opgeleverd.
     </div>`;
 
   // ── 4. VERGELIJKING DEZE MAAND VS VORIGE MAAND ──
