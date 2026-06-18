@@ -1344,9 +1344,16 @@
         <div class="card-header">
           <div class="card-title-block">
             <div class="card-eyebrow">Wat als...</div>
-            <div class="card-title">🔋 Pylontech 15.4 kWh besparing tot nu toe</div>
-            <div class="card-sub">Wat een batterij je tot nu toe had bespaard</div>
+            <div class="card-title">🔋 Batterij-besparing tot nu toe</div>
+            <div class="card-sub">Selecteer een batterijmaat om te zien wat die je tot nu toe had bespaard</div>
           </div>
+          <select id="dashBatSelect" class="select" style="min-width:200px;" onchange="renderDashboardWidgets()">
+            <option value="10.2">Pylontech 10.2 kWh</option>
+            <option value="15.4">Pylontech 15.4 kWh</option>
+            <option value="20.2" selected>Pylontech 20.2 kWh</option>
+            <option value="25.6">Pylontech 25.6 kWh</option>
+            <option value="eigen">⚙️ Mijn eigen batterij</option>
+          </select>
         </div>
         <div id="battSavedContent"></div>
       </div>
@@ -3200,10 +3207,23 @@ function renderDashboardWidgets() {
     <div class="kpi gold"><div class="kpi-val">${fmtE(ytdKosten)}</div><div class="kpi-unit">totale kosten</div><div class="kpi-label">${ytdDagen} dagen</div></div>`;
 
   // ── 3. BATTERIJ-BESPARING TOT NU TOE ──
-  // Gebruik actieve batterij-config (eigen batterij of Pylontech 15.4 als default)
-  const batCfg_dash = getBatterijConfig();
-  const BAT_EFF = batCfg_dash ? batCfg_dash.effectief : 13.2;
-  const BAT_LABEL = batCfg_dash ? `${batCfg_dash.merk || 'Eigen batterij'} ${batCfg_dash.label} kWh` : 'Pylontech 15.4 kWh referentie';
+  // Lees keuze uit dropdown (default: Pylontech 20.2)
+  const dashBatKeuze = document.getElementById('dashBatSelect')?.value || '20.2';
+  let BAT_EFF, BAT_LABEL;
+  if (dashBatKeuze === 'eigen') {
+    const cfg = getBatterijConfig();
+    if (cfg) {
+      BAT_EFF = cfg.effectief;
+      BAT_LABEL = `${cfg.merk || 'Eigen batterij'} ${cfg.label} kWh`;
+    } else {
+      BAT_EFF = 16.1; // fallback als geen eigen batterij geconfigureerd
+      BAT_LABEL = '⚠️ Geen eigen batterij geconfigureerd — gebruik 20.2 default';
+    }
+  } else {
+    const bat = PYLONTECH.find(b => b.label === dashBatKeuze);
+    BAT_EFF = bat ? bat.effectief : 13.2;
+    BAT_LABEL = `Pylontech Force H3 ${dashBatKeuze} kWh`;
+  }
   const dagenMetOpwek = data.filter(r => r.opwek > 0);
   let totaalBespaard = 0;
   let totaalBespaardPost2027 = 0; // zelfde data, maar gerekend met tarief vanaf 2027
