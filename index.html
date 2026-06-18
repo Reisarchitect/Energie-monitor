@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Energie Monitor — Reisarchitect</title>
+<title>Energie Monitor — Full Send Labs</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* ═══════════════════════════════════════════════════════════
-     REISARCHITECT — NAVY & GOUD HUISSTIJL
+     FULL SEND LABS — NAVY & GOUD HUISSTIJL
      Premium dark editorial aesthetic
   ═══════════════════════════════════════════════════════════ */
   :root {
@@ -1132,9 +1132,9 @@
 <!-- AUTH SCREEN -->
 <div id="authScreen">
   <div class="auth-card">
-    <div class="auth-monogram">R</div>
+    <div class="auth-monogram">F</div>
     <div class="auth-rule"></div>
-    <div class="auth-tag">Reisarchitect</div>
+    <div class="auth-tag">Full Send Labs</div>
     <div class="auth-title">Energie Monitor</div>
     <div class="auth-sub">
       Een persoonlijk dashboard voor je energieprofiel.<br>
@@ -1312,6 +1312,12 @@
 
     <!-- DASHBOARD -->
     <div class="panel" id="panel-dashboard">
+      <!-- Credit -->
+      <div style="text-align:center;margin:0 0 18px;padding:14px;background:rgba(36,56,96,0.3);border:1px solid var(--line-gold);border-radius:10px;">
+        <div style="font-size:10px;color:var(--gold);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Created by</div>
+        <div style="font-size:18px;color:var(--ivory);font-weight:600;letter-spacing:0.5px;">Full Send Labs</div>
+      </div>
+
       <!-- Insights -->
       <div class="insights-grid" id="insightsGrid"></div>
 
@@ -1602,7 +1608,7 @@
         <div class="form-grid" style="grid-template-columns: repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:8px;">
           <div class="field">
             <label>Aanschafprijs batterij (€)</label>
-            <input type="number" id="b-prijs" step="100" placeholder="bv. 8500" oninput="renderBatterij()">
+            <input type="number" id="b-prijs" step="100" placeholder="bv. 6873" oninput="renderBatterij();renderDashboardWidgets&&renderDashboardWidgets()">
           </div>
         </div>
         <div id="terugverdienGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px;"></div>
@@ -2222,6 +2228,17 @@ const CLIENT_ID = '729078019772-rqio116p7tfgot33t0duk2vq17r7fmdj.apps.googleuser
 const SHEET_ID  = '1rio7mKOB_zaqqAg7vJAlGkDnZsukb0b8GEHirFnvLz0';
 const SHEET_NAME = 'Blad1';
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+
+// ─── Pi REST API (vervangt Google Sheets) ─────────────────────────
+// De Pi serveert data op poort 3100. Probeert hostnames in volgorde
+// (thuis: direct IP, op afstand: Meshnet, fallback: probeer ze allemaal).
+const PI_API_CANDIDATES = [
+  'http://192.168.50.155:3100',          // thuis (statisch IP Pi op LAN)
+  'http://fsl-pi.local:3100',            // mDNS, werkt thuis
+  'http://energie.local',                // Caddy reverse proxy thuis
+  // Toevoegen na Meshnet setup: 'http://barry-pi.nord:3100' of vergelijkbare
+];
+let PI_API_BASE = null; // wordt bij eerste succesvolle fetch gezet
 const INKOOP_TARIEF    = 0.25912;
 const SALDERING_TARIEF = 0.13230;
 const CUTOFF_SALDERING = '2027-01-01';
@@ -2362,6 +2379,7 @@ let charts = {};
 let historischeMaanden = []; // [{maand:'2026-01', uit_net:1303, teruggeleverd:0, gas:394}, ...]
 
 // ─── TERUGVERDIEN BANNER ──────────────────────────────────────
+// Investering = zonnepanelen-installatie (apart van batterij)
 const INVESTERING = 6600;
 let allData = []; // altijd alle data (voor filtering)
 
@@ -2474,24 +2492,17 @@ function applyJaarFilter() {
   }
 }
 
-// ─── GOOGLE AUTH — PURE REDIRECT (werkt overal) ───────────────
-function gapiInit() {
-  gapi.load('client', async () => {
-    await gapi.client.init({
-      discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
-    });
-    gapiLoaded = true;
-    checkSession();
-  });
-}
-
-function gisInit() {
-  // Niet meer nodig voor redirect flow, maar laten staan voor compatibiliteit
-  gisLoaded = true;
-  checkSession();
-}
+// ─── GEEN GOOGLE AUTH MEER — data komt van Pi REST API ─────────
+// Stubs zodat externe gapi/gis script-loads niet crashen.
+function gapiInit() { gapiLoaded = true; checkSession(); }
+function gisInit() { gisLoaded = true; checkSession(); }
 
 function checkSession() {
+  // Skip alle Google-auth, ga direct naar de app en laad data van Pi
+  showApp();
+  loadData();
+  return;
+  // ── Oude Google-auth-code hieronder, niet meer in gebruik ──
   if (!gapiLoaded) return;
   
   // Check of we terugkomen van Google redirect (token in URL hash)
@@ -2575,61 +2586,56 @@ function setStatus(state, text) {
   document.getElementById('statusText').textContent = text;
 }
 
+// Probeer Pi te bereiken via de candidate URLs. Eerste die werkt wint.
+async function findPiApi() {
+  if (PI_API_BASE) return PI_API_BASE;
+  for (const base of PI_API_CANDIDATES) {
+    try {
+      const r = await fetch(`${base}/api/status`, { signal: AbortSignal.timeout(2000) });
+      if (r.ok) {
+        PI_API_BASE = base;
+        return base;
+      }
+    } catch(e) { /* probeer volgende */ }
+  }
+  throw new Error('Geen Pi bereikbaar op een van de URLs. Op je hoofdnetwerk aangesloten of via Meshnet verbonden?');
+}
+
 async function loadData() {
-  setStatus('syncing', 'Data laden uit Google Sheets...');
+  setStatus('syncing', 'Data laden van Pi...');
   try {
-    const resp = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A:J`,
-    });
-    const rows = resp.result.values || [];
-    if (rows.length < 2) {
-      await initSheet();
-      data = [];
-    } else {
-      data = rows.slice(1).map(r => ({
-        datum: r[0] || '',
-        opwek: parseFloat(r[1]) || 0,
-        teruggeleverd: parseFloat(r[2]) || 0,
-        uit_net: parseFloat(r[3]) || 0,
-        zelf: parseFloat(r[4]) || 0,
-        totaal: parseFloat(r[5]) || 0,
-        auto_groen: parseFloat(r[6]) || 0,
-        auto_net: parseFloat(r[7]) || 0,
-        gas: parseFloat(r[8]) || 0,
-        weer: r[9] || '',
-      })).filter(r => r.datum);
-    }
-    setStatus('ok', `${data.length} dagen geladen · Google Sheets`);
+    const base = await findPiApi();
+    const resp = await fetch(`${base}/api/data`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const json = await resp.json();
+    data = (json.rows || []).map(r => ({
+      datum: r.datum || '',
+      opwek: parseFloat(r.opwek) || 0,
+      teruggeleverd: parseFloat(r.teruggeleverd) || 0,
+      uit_net: parseFloat(r.uit_net) || 0,
+      zelf: parseFloat(r.zelf) || 0,
+      totaal: parseFloat(r.totaal) || 0,
+      auto_groen: parseFloat(r.auto_groen) || 0,
+      auto_net: parseFloat(r.auto_net) || 0,
+      gas: parseFloat(r.gas) || 0,
+      weer: r.weer || '',
+    })).filter(r => r.datum);
+
+    setStatus('ok', `${data.length} dagen geladen · Pi (${base.replace(/^https?:\/\//,'')})`);
     allData = [...data];
     populateJaarFilter();
     updateHeader();
     renderTable();
     updateTerugverdienBanner();
     setVolgendeDatum();
-    await loadHistorischeMaanden();
-    await loadVoorspellingen();
+    // historischeMaanden en voorspellingen: skip (zaten in Google Sheet tabs,
+    // worden later via Pi geserveerd als we de Pi dat ook laten doen)
+    historischeMaanden = [];
+    voorspellingen = [];
   } catch (e) {
-    const code = e.status || e.result?.error?.code;
-    const msg = e.result?.error?.message || e.message || 'onbekende fout';
-    if (code === 404 || msg.includes('not found') || msg.includes('Unable to parse')) {
-      setStatus('error', '⚠ Google Sheet niet gevonden — is hij verwijderd?');
-      showToast('Sheet niet gevonden (404). Controleer je Google Drive.', true);
-      document.getElementById('setupBanner').style.display = 'block';
-      document.getElementById('setupBanner').innerHTML = `
-        <strong style="color:#E8C871">⚠ Google Sheet niet gevonden!</strong><br>
-        Sheet ID <code style="color:var(--ivory)">${SHEET_ID}</code> bestaat niet meer in je Google Drive.<br>
-        Herstel de sheet uit de <a href="https://drive.google.com/drive/trash" target="_blank" style="color:var(--gold-light)">prullenbak</a>,
-        of maak een nieuwe sheet aan en pas het SHEET_ID aan in de app.
-      `;
-    } else if (code === 403) {
-      setStatus('error', '⚠ Geen toegang tot Google Sheet');
-      showToast('Geen toegang (403). Controleer sheet-rechten.', true);
-    } else {
-      setStatus('error', `Fout: ${msg}`);
-      showToast(`Laadfoout: ${msg}`, true);
-    }
-    console.error('loadData fout:', code, msg, e);
+    setStatus('error', `Pi niet bereikbaar: ${e.message}`);
+    showToast(`Pi onbereikbaar. Op thuisnetwerk of Meshnet?`, true);
+    console.error('loadData fout:', e);
     loadDemoData();
   }
 }
@@ -3235,7 +3241,7 @@ function renderDashboardWidgets() {
     // Post-2027 scenario: zelfde data, maar volledige inkoopprijs als winst
     totaalBespaardPost2027 += opslagPotentieel * 0.25912;
   });
-  const investering = parseFloat(document.getElementById('b-prijs')?.value) || 6600;
+  const investering = parseFloat(document.getElementById('b-prijs')?.value) || 6873;
   const procentTerugverdiend = investering > 0 ? (totaalBespaard / investering * 100) : 0;
 
   // Seizoenscorrigeerde jaarprojectie (zoals batterijadvies doet)
@@ -4029,13 +4035,20 @@ function renderBatterij() {
     options:{ ...baseOpts, plugins:{ legend:{ display:false } }, scales:{ x:baseOpts.scales.x, y:{ ...baseOpts.scales.y, min:0, max:100, ticks:{ ...T, callback:v=>v+'%' }, grid:G } } }
   });
 
+  // Grenslijn: gebruik actieve batterij (eigen batterij of fallback Pylontech 20.2)
+  const grensCfg = getBatterijConfig();
+  const grensBat = grensCfg || PYLONTECH[2]; // default 20.2 ipv 15.4
+  const grensLabel = grensCfg
+    ? `${grensCfg.merk || 'Eigen batterij'} ${grensCfg.label} kWh grens`
+    : `Pylontech ${grensBat.label} kWh grens`;
+
   dc('chartPotentieel');
   charts['chartPotentieel'] = new Chart(document.getElementById('chartPotentieel'), {
     type:'bar',
     data:{ labels, datasets:[
       { label:'Netto laadpotentieel (kWh)', data:nettoLaadArr, backgroundColor:C.orangeA, borderColor:C.orange, borderWidth:1.5, borderRadius:2 },
       { label:'Teruglevering (kWh)', data:terugArr, backgroundColor:C.tealA, borderColor:C.teal, borderWidth:1, borderRadius:2, type:'line', tension:0.3, pointRadius:2 },
-      { label:'15.4 kWh grens', data:new Array(d.length).fill(PYLONTECH[1].effectief), type:'line', borderColor:C.sun, borderWidth:2, borderDash:[6,4], pointRadius:0 },
+      { label: grensLabel, data:new Array(d.length).fill(grensBat.effectief), type:'line', borderColor:C.sun, borderWidth:2, borderDash:[6,4], pointRadius:0 },
     ]},
     options:{ ...baseOpts }
   });
